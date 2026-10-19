@@ -59,15 +59,16 @@ test('five complete palettes supply readable text, syntax, status, and selected 
   }
 });
 
-test('panel styles use declared semantic tokens, with color literals kept in the palettes', async () => {
-  const app = await readFile('apps/web/src/styles/app.css', 'utf8');
+test('global styles and Tailwind aliases use declared semantic tokens', async () => {
+  const app = await readFile('apps/web/src/styles/base.css', 'utf8');
   const tokens = await readFile('apps/web/src/styles/tokens.css', 'utf8');
   const declared = new Set(
-    [...`${palettes}\n${tokens}`.matchAll(/(--[\w-]+):/g)].map((match) => match[1]),
+    // Browser integrations can declare scoped state, such as animated scrollbar visibility.
+    [...`${palettes}\n${tokens}\n${app}`.matchAll(/(--[\w-]+):/g)].map((match) => match[1]),
   );
   declared.add('--navigation-width'); // Supplied by the workspace layout.
   assert.ok(!/#[\da-f]{3,8}\b/i.test(app));
-  for (const match of app.matchAll(/var\((--[\w-]+)/g)) {
+  for (const match of `${app}\n${tokens}`.matchAll(/var\((--[\w-]+)/g)) {
     assert.ok(declared.has(match[1]), `Undeclared token: ${match[1]}`);
   }
 });

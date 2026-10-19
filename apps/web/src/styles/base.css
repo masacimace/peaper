@@ -1,0 +1,129 @@
+/* Resets and browser/third-party integration only. Component styling lives in TSX. */
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--text-small);
+    line-height: var(--line-height-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button,
+  summary {
+    cursor: pointer;
+  }
+  button {
+    transition:
+      color var(--duration-fast),
+      background-color var(--duration-fast),
+      border-color var(--duration-fast);
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+  svg {
+    flex-shrink: 0;
+  }
+  :focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+    box-shadow: var(--focus-ring);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-tertiary);
+  }
+  option {
+    background: var(--surface);
+    color: var(--text);
+  }
+  ::selection {
+    background: var(--selection);
+  }
+  ::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 0;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-hover);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* These selectors cross component/third-party boundaries. */
+[hidden] {
+  display: none !important;
+}
+body[data-resizing] {
+  user-select: none;
+}
+body[data-resizing] iframe,
+body[data-resizing] .monaco-editor {
+  pointer-events: none;
+}
+[data-slot='terminal-host'] .xterm {
+  height: 100%;
+}
+
+/* Native Agent scrollbars and Monaco's DOM sliders share the same idle behavior. */
+@property --scrollbar-visibility {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+.scroll-surface {
+  --scrollbar-visibility: 0;
+  transition: --scrollbar-visibility var(--duration-scrollbar-hide) var(--ease-standard);
+}
+.scroll-surface.is-scrolling {
+  --scrollbar-visibility: 1;
+  transition-duration: var(--duration-scrollbar-reveal);
+}
+.scroll-surface ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scroll-surface ::-webkit-scrollbar-thumb {
+  background-color: color-mix(
+    in srgb,
+    var(--scrollbar) calc(var(--scrollbar-visibility) * 100%),
+    transparent
+  );
+  border-radius: 999px;
+}
+.scroll-surface ::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--scrollbar-hover) calc(var(--scrollbar-visibility) * 100%),
+    transparent
+  );
+}
+.scroll-surface .monaco-scrollable-element > .scrollbar > .slider {
+  border-radius: 999px;
+  opacity: var(--scrollbar-visibility);
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-surface {
+    transition: none;
+  }
+}

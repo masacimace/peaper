@@ -5,8 +5,22 @@ import {
   eventSchema,
   directorySchema,
   workspaceFileSchema,
+  agentRunSchema,
+  agentRunsSchema,
+  modelStateSchema,
+  selectionResponseSchema,
+  continuityStateSchema,
+  contextInfoSchema,
+  rewindPreviewSchema,
 } from '@peaper/shared';
-import type { RuntimeEvent } from '@peaper/shared';
+import type {
+  RuntimeEvent,
+  ConnectionInput,
+  ModelSelection,
+  ModelState,
+  ModelOptions,
+  AgentMode,
+} from '@peaper/shared';
 import { z } from 'zod';
 
 const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -34,6 +48,137 @@ async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit
 }
 
 export const api = {
+  sessionDraft: (id: string) =>
+    request(`/sessions/${encodeURIComponent(id)}/draft`, continuityStateSchema),
+  saveDraft: (id: string, draft: string, mode: AgentMode) =>
+    request(`/sessions/${encodeURIComponent(id)}/draft`, continuityStateSchema, {
+      method: 'PUT',
+      body: JSON.stringify({ draft, mode }),
+      keepalive: true,
+    }),
+  context: (id: string, selection?: ModelSelection | null, path?: string | null) => {
+    const query = new URLSearchParams();
+    if (selection) {
+      query.set('modelId', selection.modelId);
+      query.set('effort', selection.effort);
+    }
+    if (path) query.set('path', path);
+    return request(`/sessions/${encodeURIComponent(id)}/context?${query}`, contextInfoSchema);
+  },
+  compact: (id: string, selection?: ModelSelection | null) =>
+    request(`/sessions/${encodeURIComponent(id)}/compact`, contextInfoSchema, {
+      method: 'POST',
+      body: JSON.stringify({ selection: selection ?? undefined }),
+    }),
+  renameSession: (id: string, title: string) =>
+    request(`/sessions/${encodeURIComponent(id)}`, sessionSchema, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    }),
+  exportSession: (id: string, format: 'json' | 'markdown') =>
+    request(
+      `/sessions/${encodeURIComponent(id)}/export?format=${format}`,
+      z.object({ filename: z.string(), content: z.string(), type: z.string() }),
+    ),
+  forkSession: (id: string, afterRunId: string | null, title: string) =>
+    request(`/sessions/${encodeURIComponent(id)}/fork`, sessionSchema, {
+      method: 'POST',
+      body: JSON.stringify({ afterRunId, title }),
+    }),
+  rewindPreview: (id: string, afterRunId: string | null) =>
+    request(`/sessions/${encodeURIComponent(id)}/rewind/preview`, rewindPreviewSchema, {
+      method: 'POST',
+      body: JSON.stringify({ afterRunId }),
+    }),
+  rewind: (id: string, afterRunId: string | null, revision: string, paths: string[]) =>
+    request(
+      `/sessions/${encodeURIComponent(id)}/rewind`,
+      z.object({ rewound: z.number(), restored: z.number() }),
+      { method: 'POST', body: JSON.stringify({ afterRunId, revision, paths }) },
+    ),
+  restoreFiles: (id: string, afterRunId: string | null, revision: string, paths: string[]) =>
+    request(
+      `/sessions/${encodeURIComponent(id)}/restore`,
+      z.object({ rewound: z.number(), restored: z.number() }),
+      { method: 'POST', body: JSON.stringify({ afterRunId, revision, paths }) },
+    ),
+  savePlan: (id: string, text: string, revision: number) =>
+    request(`/sessions/${encodeURIComponent(id)}/plan`, continuityStateSchema, {
+      method: 'PUT',
+      body: JSON.stringify({ text, revision }),
+    }),
+  implementPlan: (id: string, revision: number, selection: ModelSelection | null) =>
+    request(`/sessions/${encodeURIComponent(id)}/plan/implement`, agentRunSchema, {
+      method: 'POST',
+      body: JSON.stringify({ revision, selection: selection ?? undefined }),
+    }),
+  resumeRun: (id: string, selection: ModelSelection | null) =>
+    request(`/runs/${encodeURIComponent(id)}/resume`, agentRunSchema, {
+      method: 'POST',
+      body: JSON.stringify({ selection: selection ?? undefined }),
+    }),
+  models: () => request('/models', modelStateSchema),
+  saveConnection: (input: ConnectionInput, id?: string) =>
+    request(
+      id ? `/model-connections/${encodeURIComponent(id)}` : '/model-connections',
+      modelStateSchema,
+      { method: id ? 'PUT' : 'POST', body: JSON.stringify(input) },
+    ),
+  refreshModels: (id: string) =>
+    request(`/model-connections/${encodeURIComponent(id)}/refresh`, modelStateSchema, {
+      method: 'POST',
+    }),
+  addModel: (connectionId: string, modelId: string, name?: string) =>
+    request('/models/manual', modelStateSchema, {
+      method: 'POST',
+      body: JSON.stringify({ connectionId, modelId, name }),
+    }),
+  updateModel: (
+    id: string,
+    values: { favorite?: boolean; showInChat?: boolean; options?: ModelOptions },
+  ) =>
+    request(`/models/${encodeURIComponent(id)}`, modelStateSchema, {
+      method: 'PATCH',
+      body: JSON.stringify(values),
+    }),
+  testModel: (id: string) =>
+    request(`/models/${encodeURIComponent(id)}/test`, modelStateSchema, { method: 'POST' }),
+  saveDefaults: (defaults: ModelState['defaults']) =>
+    request('/model-defaults', modelStateSchema, { method: 'PUT', body: JSON.stringify(defaults) }),
+  sessionModel: (id: string) =>
+    request(`/sessions/${encodeURIComponent(id)}/model`, selectionResponseSchema),
+  selectModel: (id: string, selection: ModelSelection) =>
+    request(`/sessions/${encodeURIComponent(id)}/model`, selectionResponseSchema, {
+      method: 'PUT',
+      body: JSON.stringify(selection),
+    }),
+  answerQuestion: (id: string, questionId: string, answer: string) =>
+    request(
+      `/runs/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}`,
+      agentRunSchema,
+      { method: 'POST', body: JSON.stringify({ answer }) },
+    ),
+  runs: (sessionId: string) =>
+    request(`/sessions/${encodeURIComponent(sessionId)}/runs`, agentRunsSchema),
+  sendMessage: (
+    sessionId: string,
+    message: string,
+    selectedFile: string | null,
+    selection?: ModelSelection,
+    mode?: AgentMode,
+  ) =>
+    request(`/sessions/${encodeURIComponent(sessionId)}/messages`, agentRunSchema, {
+      method: 'POST',
+      body: JSON.stringify({ message, selectedFile, selection, mode }),
+    }),
+  cancelRun: (id: string) =>
+    request(`/runs/${encodeURIComponent(id)}/cancel`, agentRunSchema, { method: 'POST' }),
+  decidePermission: (id: string, permissionId: string, allow: boolean) =>
+    request(
+      `/runs/${encodeURIComponent(id)}/permissions/${encodeURIComponent(permissionId)}`,
+      agentRunSchema,
+      { method: 'POST', body: JSON.stringify({ allow }) },
+    ),
   health: () => request('/health', healthSchema),
   workspace: () => request('/workspace', workspaceSchema),
   files: (path = '') => request(`/files?path=${encodeURIComponent(path)}`, directorySchema),

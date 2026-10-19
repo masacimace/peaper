@@ -9,6 +9,9 @@ Use the mockup's compact, editor-focused dark workspace: neutral charcoal surfac
 dividers, restrained green status accents, small corner radii, Inter for controls, and JetBrains
 Mono for source and terminal text. Fonts, editor assets, and workers are bundled locally.
 Global tokens live in `apps/web/src/styles/tokens.css`; layout and controls share semantic tokens.
+Tailwind v4 is the main component styling approach. Shared UI primitives live in
+`apps/web/src/components/ui/`; `base.css` contains only browser defaults and integration rules.
+See [frontend styling conventions](Frontend-Styling.md) for structure and maintenance guidance.
 
 Five color schemes are available in Settings → Appearance & layout: Peaper Ink (default),
 Peaper Mono, and Peaper Midnight are dark; Peaper Paper is neutral light and Peaper Linen is
@@ -66,14 +69,23 @@ The iframe has its own local origin and restricted embedding permissions. Applic
 block framing remain subject to their own headers and can be opened in a separate browser tab.
 No reverse proxy or application-header rewriting is included.
 
-## M1 functionality and later milestones
+## Implemented functionality and later milestones
 
 Read-only browsing, editor tabs and highlighting, terminal interaction, session management,
-runtime details, layout controls, and manual preview work in M1. Model calls, saving source
-changes, agent tools, automated server management, and full Skills/Memory/MCP managers follow
-their implementation milestones. The shared panel and manager structures establish their
-visual foundation now.
+runtime details, layout controls, and manual preview were established in M1. M2 adds model
+configuration and capability checks, live streaming chat, file/command tools, proposed and
+applied diffs, explicit write/command approvals, questions, todo progress and task cancellation.
+Agent output uses the same semantic tokens in all five color schemes. Automated persistent
+server management and full Skills/Memory/MCP managers follow their implementation milestones.
+
+The Models sidebar destination separates Providers, Model Catalog and Defaults from Settings.
+The composer uses a direct model picker and an optional effort selector displaying only its
+selected value. Details, persistence and capability behavior are described in [model management](Models-Management.md).
+Narrow composers put the selectors on a separate row, keeping model names readable and the
+context/send controls aligned. Model search is available on the Models page.
 
 The read-only file service bounds reads, validates canonical paths, excludes generated/private
 content, and rejects paths and junctions outside the workspace. The editor never writes a file.
+The M2 agent can propose writes through separate backend tools; the user reviews each diff
+before approval. The editor refreshes after applied changes and remains a read-only viewer.
 UI access authentication and terminal lifecycle management remain separate from an OS sandbox.

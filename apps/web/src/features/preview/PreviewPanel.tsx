@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
   ExternalLink,
@@ -9,6 +8,11 @@ import {
   Tablet,
   Unplug,
 } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Button, IconButton } from '../../components/ui/Button';
+import { cn } from '../../components/ui/cn';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorNotice } from '../../components/ui/Notice';
 import { Panel } from '../../layout/Panel';
 import { normalizePreviewUrl } from './preview-url';
 
@@ -69,7 +73,7 @@ export function PreviewPanel({
     <Panel
       title="Preview"
       icon={Monitor}
-      className="preview-panel"
+      className="h-full bg-surface-inset"
       hidden={hidden}
       maximized={maximized}
       onMaximize={onMaximize}
@@ -77,8 +81,7 @@ export function PreviewPanel({
       actions={
         <>
           {source && (
-            <button
-              className="icon-button"
+            <IconButton
               title="Disconnect preview"
               aria-label="Disconnect preview"
               onClick={() => {
@@ -95,11 +98,11 @@ export function PreviewPanel({
               }}
             >
               <Unplug size={13} />
-            </button>
+            </IconButton>
           )}
           {source && (
             <a
-              className="icon-button"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-surface-hover hover:text-foreground"
               href={source}
               target="_blank"
               rel="noopener noreferrer"
@@ -112,9 +115,12 @@ export function PreviewPanel({
         </>
       }
     >
-      <form className="preview-toolbar" onSubmit={navigate}>
-        <button
-          className="icon-button"
+      <form
+        className="flex h-7.5 min-h-7.5 items-center gap-1.25 border-b border-border bg-surface-toolbar pr-1.5 pl-1 text-subtle"
+        onSubmit={navigate}
+      >
+        <IconButton
+          className="size-5.25"
           type="button"
           disabled={!source}
           aria-label="Reload preview"
@@ -126,9 +132,10 @@ export function PreviewPanel({
           }}
         >
           <RotateCw size={13} />
-        </button>
+        </IconButton>
         <Globe2 size={12} />
         <input
+          className="w-10 min-w-0 flex-1 border-0 bg-transparent px-0.25 py-0.75 text-micro text-foreground outline-none"
           ref={urlInput}
           aria-label="Preview URL"
           placeholder="http://localhost:3000"
@@ -136,15 +143,15 @@ export function PreviewPanel({
           onChange={(event) => setInput(event.target.value)}
           spellCheck={false}
         />
-        <button
-          className="icon-button"
+        <IconButton
+          className="size-5.25"
           type="submit"
           title="Load local preview"
           aria-label="Load local preview"
         >
           <ArrowRight size={13} />
-        </button>
-        <label className="viewport-control">
+        </IconButton>
+        <label className="flex items-center gap-0.5 border-l border-border pl-1.75">
           <span className="sr-only">Preview viewport</span>
           {viewport === '390' ? (
             <Smartphone size={13} />
@@ -154,6 +161,7 @@ export function PreviewPanel({
             <Monitor size={13} />
           )}
           <select
+            className="h-5.75 w-12.25 cursor-pointer border-0 bg-transparent text-mini text-muted outline-none"
             aria-label="Preview viewport"
             value={viewport}
             onChange={(event) => setViewport(event.target.value)}
@@ -165,17 +173,18 @@ export function PreviewPanel({
           </select>
         </label>
       </form>
-      {error && (
-        <div className="inline-error" role="alert">
-          {error}
-        </div>
-      )}
+      {error && <ErrorNotice role="alert">{error}</ErrorNotice>}
       <div
-        className={`preview-canvas ${viewport !== 'auto' ? 'fixed-viewport' : ''} ${!source ? 'preview-canvas-empty' : ''}`}
+        className={cn(
+          'relative min-h-0 flex-1 overflow-auto bg-preview',
+          viewport !== 'auto' && 'bg-preview-gutter',
+          !source && 'flex',
+        )}
       >
         {source ? (
           <>
             <iframe
+              className="mx-auto block h-full min-h-full border-0 bg-preview-page"
               key={`${source}:${reload}`}
               title="Application live preview"
               src={source}
@@ -191,7 +200,7 @@ export function PreviewPanel({
               }}
             />
             {loading && (
-              <div className="preview-loading">
+              <div className="absolute top-1.5 left-1/2 max-w-[95%] -translate-x-1/2 truncate rounded-sm border border-border-strong bg-surface-raised px-2 py-1.25 text-micro text-foreground">
                 {slow
                   ? 'Still loading. Check your dev server or open the URL in your browser.'
                   : 'Loading preview…'}
@@ -199,20 +208,27 @@ export function PreviewPanel({
             )}
           </>
         ) : (
-          <div className="panel-empty preview-empty">
-            <Monitor size={25} strokeWidth={1.2} />
-            <p>Start your dev server, then enter its local URL above.</p>
-            <button className="text-button" onClick={() => urlInput.current?.focus()}>
+          <EmptyState
+            className="max-w-57.5 p-3.75"
+            icon={Monitor}
+            description="Start your dev server, then enter its local URL above."
+          >
+            <Button variant="text" className="text-micro" onClick={() => urlInput.current?.focus()}>
               Enter a local URL
               <ArrowRight size={13} />
-            </button>
-          </div>
+            </Button>
+          </EmptyState>
         )}
       </div>
       {source && (
-        <div className="preview-footer">
+        <div className="flex min-h-5.25 items-center justify-between gap-2.25 border-t border-border px-2 py-0.75 text-tiny whitespace-nowrap text-subtle">
           <span>{viewport === 'auto' ? 'Fit to panel' : `${viewport}px viewport`}</span>
-          <a href={source} target="_blank" rel="noopener noreferrer">
+          <a
+            className="flex items-center gap-1 text-muted hover:text-strong"
+            href={source}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Page blank? Open in browser <ExternalLink size={10} />
           </a>
         </div>

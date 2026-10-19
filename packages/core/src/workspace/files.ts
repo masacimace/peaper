@@ -14,14 +14,15 @@ const omitted = new Set([
   '.pnpm-store',
 ]);
 const limit = 512 * 1024;
-function excluded(parts: string[]) {
-  return parts.some(
-    (part) =>
-      omitted.has(part) ||
-      (part.startsWith('.env') && part !== '.env.example') ||
-      part === '.npmrc',
-  );
+export function workspacePathExcluded(parts: string[]) {
+  return parts.some((part) => {
+    const name = part.toLowerCase();
+    return (
+      omitted.has(name) || (name.startsWith('.env') && name !== '.env.example') || name === '.npmrc'
+    );
+  });
 }
+const excluded = workspacePathExcluded;
 function unavailable(message: string, statusCode = 400): Error & { statusCode: number } {
   return Object.assign(new Error(message), { statusCode });
 }
@@ -51,7 +52,10 @@ const languageByExtension: Record<string, string> = {
 
 /** A bounded, read-only workspace browser; it never follows a path outside its root. */
 export class WorkspaceFiles {
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly protectedDirectory?: string,
+  ) {}
 
   private async locate(path: string) {
     const parts = path.replaceAll('\\', '/').split('/');
@@ -76,6 +80,16 @@ export class WorkspaceFiles {
       throw unavailable('Choose a path within this workspace.', 403);
     if (excluded(within.split(sep)))
       throw unavailable('This file is excluded from the workspace browser.', 403);
+    if (this.protectedDirectory) {
+      const protectedPath = relative(await realpath(this.protectedDirectory), canonical);
+      if (
+        protectedPath === '' ||
+        (!protectedPath.startsWith(`..${sep}`) &&
+          protectedPath !== '..' &&
+          !isAbsolute(protectedPath))
+      )
+        throw unavailable('Peaper runtime data is excluded from workspace access.', 403);
+    }
     return canonical;
   }
 
@@ -90,11 +104,9 @@ export class WorkspaceFiles {
     const entries: WorkspaceEntry[] = children
       .filter(
         (entry) =>
-          !omitted.has(entry.name) &&
+          !excluded([entry.name]) &&
           !entry.isSymbolicLink() &&
-          (entry.isDirectory() || entry.isFile()) &&
-          !(entry.name.startsWith('.env') && entry.name !== '.env.example') &&
-          entry.name !== '.npmrc',
+          (entry.isDirectory() || entry.isFile()),
       )
       .map((entry) => ({
         name: entry.name,

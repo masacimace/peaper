@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { Play, RotateCcw, Square, TerminalSquare } from 'lucide-react';
 import type { TerminalClientMessage, TerminalServerMessage } from '@peaper/shared';
-import { accessToken } from '../../lib/api';
+import { FitAddon } from '@xterm/addon-fit';
+import { Terminal } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
+import { Play, RotateCcw, Square, TerminalSquare } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Button, IconButton } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { Panel } from '../../layout/Panel';
+import { accessToken } from '../../lib/api';
 import { readTerminalTheme } from '../../theme/editor-themes';
 import { useTheme } from '../../theme/useTheme';
-import '@xterm/xterm/css/xterm.css';
 
 export default function TerminalPanel({
   hidden,
@@ -110,24 +112,20 @@ export default function TerminalPanel({
     <Panel
       title="Terminal"
       icon={TerminalSquare}
-      className="terminal-panel"
+      className="h-full bg-terminal"
       hidden={hidden}
       maximized={maximized}
       onMaximize={onMaximize}
       onClose={onClose}
       actions={
         <>
-          <span className="terminal-connection">{connection}</span>
-          <button
-            className="icon-button"
-            aria-label="Restart terminal"
-            title="Restart shell"
-            onClick={start}
-          >
+          <span className="mr-1.75 text-mini whitespace-nowrap text-subtle max-compact:mr-0.75 max-compact:text-tiny">
+            {connection}
+          </span>
+          <IconButton aria-label="Restart terminal" title="Restart shell" onClick={start}>
             <RotateCcw size={13} />
-          </button>
-          <button
-            className="icon-button"
+          </IconButton>
+          <IconButton
             aria-label="Stop terminal shell"
             title="Stop shell"
             disabled={stopped}
@@ -137,20 +135,23 @@ export default function TerminalPanel({
             }}
           >
             <Square size={11} />
-          </button>
+          </IconButton>
         </>
       }
     >
-      <div className="terminal-host" ref={host} hidden={stopped} />
+      <div
+        data-slot="terminal-host"
+        className="h-full min-h-0 pt-2 pr-1.25 pb-1 pl-2.5"
+        ref={host}
+        hidden={stopped}
+      />
       {stopped && (
-        <div className="panel-empty terminal-stopped">
-          <TerminalSquare size={24} strokeWidth={1.3} />
-          <h3>Shell stopped</h3>
-          <button className="secondary-button" onClick={start}>
+        <EmptyState icon={TerminalSquare} iconSize={24} title="Shell stopped">
+          <Button className="mt-3.75" onClick={start}>
             <Play size={13} />
             Start shell
-          </button>
-        </div>
+          </Button>
+        </EmptyState>
       )}
     </Panel>
   );

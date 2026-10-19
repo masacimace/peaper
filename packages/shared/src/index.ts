@@ -1,4 +1,7 @@
 import { z } from 'zod';
+export * from './agent.js';
+export * from './models.js';
+export * from './continuity.js';
 
 export const workspaceSchema = z.object({
   id: z.string(),
@@ -52,7 +55,7 @@ export const healthSchema = z.object({
     schemaVersion: z.number(),
   }),
   terminal: z.object({ shell: z.string(), active: z.number(), isolation: z.literal('host') }),
-  agent: z.literal('not-configured'),
+  agent: z.enum(['not-configured', 'configured', 'ready']),
 });
 export type Health = z.infer<typeof healthSchema>;
 
@@ -60,7 +63,14 @@ export const eventSchema = z.object({
   id: z.number().int().positive(),
   workspaceId: z.string(),
   sessionId: z.string().nullable(),
-  type: z.enum(['session.created', 'session.interrupted']),
+  type: z.enum([
+    'session.created',
+    'session.interrupted',
+    'agent.updated',
+    'provider.updated',
+    'models.updated',
+    'session.updated',
+  ]),
   payload: z.record(z.string(), z.unknown()),
   createdAt: z.string(),
 });

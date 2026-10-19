@@ -1,3 +1,5 @@
+import type { Session } from '@peaper/shared';
+import { ChevronRight, FolderCode, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import {
   lazy,
   Suspense,
@@ -7,23 +9,26 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import { ChevronRight, FolderCode, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
-import type { Session } from '@peaper/shared';
 import { Sidebar, type NavigationSection } from '../../components/Sidebar';
+import { Button, IconButton } from '../../components/ui/Button';
+import { LoadingState } from '../../components/ui/EmptyState';
+import { StatusDot } from '../../components/ui/Status';
 import { PanelMenu } from '../../layout/PanelMenu';
 import { ResizeHandle } from '../../layout/ResizeHandle';
 import { resizeLayout, type FocusedPanel, type PanelId } from '../../layout/layout';
 import { useViewportWidth, useWorkspaceLayout } from '../../layout/useWorkspaceLayout';
 import type { RuntimeSnapshot } from '../../lib/useRuntime';
-import { FileExplorer } from '../files/FileExplorer';
+import { AgentPanel } from '../agent/AgentPanel';
 import { EditorPanel } from '../editor/EditorPanel';
 import { useEditorFiles } from '../editor/useEditorFiles';
-import { AgentPanel } from '../agent/AgentPanel';
+import { FileExplorer } from '../files/FileExplorer';
 import { PreviewPanel } from '../preview/PreviewPanel';
-import { SessionsPage } from '../sessions/SessionsPage';
-import { NewSessionDialog } from '../sessions/NewSessionDialog';
-import { SettingsPage } from '../settings/SettingsPage';
 import { RuntimeDialog } from '../runtime/RuntimeDialog';
+import { NewSessionDialog } from '../sessions/NewSessionDialog';
+import { SessionsPage } from '../sessions/SessionsPage';
+import { SettingsPage } from '../settings/SettingsPage';
+import { useModels } from '../models/useModels';
+import { ModelsPage } from '../models/ModelsPage';
 import { ModulePage } from './ModulePage';
 
 const TerminalPanel = lazy(() => import('../terminal/TerminalPanel'));
@@ -50,13 +55,20 @@ export function WorkspaceStudio({
   const [newSession, setNewSession] = useState(false);
   const [runtimeDetails, setRuntimeDetails] = useState(false);
   const [terminalMounted, setTerminalMounted] = useState(layout.visible.terminal);
-  const [activeId, setActiveId] = useState<string | null>(
-    () =>
-      sessionStorage.getItem(`peaper:session:${workspace.id}`) ||
-      sessionStorage.getItem('peaper:active-session'),
-  );
+  const [activeId, setActiveId] = useState<string | null>(() => {
+    try {
+      const id =
+        sessionStorage.getItem(`peaper:session:${workspace.id}`) ||
+        localStorage.getItem(`peaper:session:${workspace.id}`) ||
+        sessionStorage.getItem('peaper:active-session');
+      return sessions.some((session) => session.id === id) ? id : null;
+    } catch {
+      return null;
+    }
+  });
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const editor = useEditorFiles(workspace.id);
+  const modelController = useModels(activeId);
   const bottom = useRef<HTMLDivElement>(null);
   const activeSession = sessions.find((session) => session.id === activeId);
   const collapsed = narrow ? !mobileNavigation : layout.sidebarCollapsed;
@@ -131,7 +143,12 @@ export function WorkspaceStudio({
   }
   function selectSession(session: Session) {
     setActiveId(session.id);
-    sessionStorage.setItem(`peaper:session:${workspace.id}`, session.id);
+    try {
+      sessionStorage.setItem(`peaper:session:${workspace.id}`, session.id);
+      localStorage.setItem(`peaper:session:${workspace.id}`, session.id);
+    } catch {
+      /* Backend session history is retained. */
+    }
     navigate('workspace');
     setLayout((previous) => ({
       ...previous,
@@ -166,12 +183,12 @@ export function WorkspaceStudio({
   const navWidth = collapsed ? 52 : 200;
   return (
     <div
-      className="studio"
+      className="grid size-full grid-cols-[var(--navigation-width)_minmax(0,1fr)] transition-[grid-template-columns] duration-(--duration-fast)"
       style={{ '--navigation-width': `${narrow ? 52 : navWidth}px` } as CSSProperties}
     >
       {mobileNavigation && narrow && (
         <button
-          className="navigation-scrim"
+          className="fixed inset-0 z-50 bg-scrim"
           aria-label="Close navigation"
           onClick={() => setMobileNavigation(false)}
         />
@@ -187,34 +204,36 @@ export function WorkspaceStudio({
         onNewSession={() => setNewSession(true)}
         onDetails={() => setRuntimeDetails(true)}
       />
-      <main className="studio-main">
-        <header className="workspace-toolbar">
-          <div className="toolbar-location">
-            <button
-              className="icon-button"
+      <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <header className="flex h-9.25 min-h-9.25 items-center justify-between gap-3 border-b border-border bg-surface-toolbar pr-2.25 pl-1.75 max-compact:gap-0.75 max-compact:pr-1.25">
+          <div className="flex min-w-0 items-center gap-2.25 text-caption text-subtle max-compact:gap-1.5">
+            <IconButton
               aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
               aria-expanded={!collapsed}
               title={`${collapsed ? 'Expand' : 'Collapse'} navigation (Ctrl+B)`}
               onClick={toggleSidebar}
             >
               {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            </button>
-            <span className="toolbar-divider" />
-            <FolderCode size={14} />
-            <span className="project-name">{workspace.name}</span>
-            <ChevronRight size={12} />
-            <span className="current-section">
+            </IconButton>
+            <span className="mx-px h-3.25 w-px bg-border max-compact:hidden" />
+            <FolderCode size={14} className="max-compact:hidden" />
+            <span className="max-w-60 truncate text-foreground max-workspace:max-w-50 max-compact:max-w-35">
+              {workspace.name}
+            </span>
+            <ChevronRight size={12} className="max-compact:hidden" />
+            <span className="text-muted max-compact:hidden">
               {section.charAt(0).toUpperCase() + section.slice(1)}
             </span>
           </div>
-          <div className="toolbar-right">
+          <div className="flex shrink-0 items-center gap-1.5">
             {focus && section === 'workspace' && (
-              <button
-                className="text-button restore-layout"
+              <Button
+                variant="text"
+                className="px-0.75 py-0.75 text-micro whitespace-nowrap max-compact:text-mini"
                 onClick={() => setLayout((previous) => ({ ...previous, maximized: null }))}
               >
                 Restore layout
-              </button>
+              </Button>
             )}
             <PanelMenu
               open={menuOpen}
@@ -226,15 +245,20 @@ export function WorkspaceStudio({
           </div>
         </header>
         {error && (
-          <div className="error-banner" role="alert">
+          <div
+            className="flex items-center justify-between gap-2.5 border-b border-danger-border bg-danger-soft px-3 py-1.25 text-label text-danger"
+            role="alert"
+          >
             <span>{error}</span>
-            <button className="icon-button" aria-label="Dismiss error" onClick={onClearError}>
+            <IconButton aria-label="Dismiss error" onClick={onClearError}>
               <X size={14} />
-            </button>
+            </IconButton>
           </div>
         )}
-        <div className="workbench" hidden={section !== 'workspace'}>
+        <div className="flex min-h-0 min-w-0 flex-1" hidden={section !== 'workspace'}>
           <AgentPanel
+            models={modelController}
+            onSessionCreated={sessionCreated}
             workspace={workspace}
             session={activeSession}
             selectedFile={editor.activePath}
@@ -245,6 +269,7 @@ export function WorkspaceStudio({
             onClose={() => hide('agent')}
             onNewSession={() => setNewSession(true)}
             onSettings={() => navigate('settings')}
+            onModels={() => navigate('models')}
           />
           {show.agent && showSurface && (
             <ResizeHandle
@@ -255,8 +280,8 @@ export function WorkspaceStudio({
               onResize={(delta) => resize('agent', delta)}
             />
           )}
-          <div className="work-surface" hidden={!showSurface}>
-            <div className="editor-row" hidden={!showTop}>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col" hidden={!showSurface}>
+            <div className="flex min-h-30 min-w-0 flex-1" hidden={!showTop}>
               <EditorPanel
                 editor={editor}
                 hidden={!show.editor}
@@ -311,7 +336,7 @@ export function WorkspaceStudio({
               />
             )}
             <div
-              className="bottom-row"
+              className="flex min-h-32.5 min-w-0 shrink-0"
               hidden={!showBottom}
               ref={bottom}
               style={{
@@ -320,12 +345,12 @@ export function WorkspaceStudio({
               }}
             >
               <div
-                className="terminal-slot"
+                className="flex min-h-0 min-w-0 [&>section]:flex-1"
                 hidden={!show.terminal}
                 style={{ flex: show.preview ? layout.sizes.bottomSplit : 1 }}
               >
                 {terminalMounted && (
-                  <Suspense fallback={<div className="panel-loading">Opening terminal…</div>}>
+                  <Suspense fallback={<LoadingState>Opening terminal…</LoadingState>}>
                     <TerminalPanel
                       hidden={!show.terminal}
                       maximized={focus === 'terminal'}
@@ -347,7 +372,7 @@ export function WorkspaceStudio({
                 />
               )}
               <div
-                className="preview-slot"
+                className="flex min-h-0 min-w-0 [&>section]:flex-1"
                 hidden={!show.preview}
                 style={{ flex: show.terminal ? 1 - layout.sizes.bottomSplit : 1 }}
               >
@@ -362,7 +387,10 @@ export function WorkspaceStudio({
             </div>
           </div>
         </div>
-        <div className="manager-container" hidden={section === 'workspace'}>
+        <div
+          className="min-h-0 flex-1 overflow-auto bg-surface-panel"
+          hidden={section === 'workspace'}
+        >
           {section === 'sessions' && (
             <SessionsPage
               sessions={sessions}
@@ -378,30 +406,31 @@ export function WorkspaceStudio({
               onRuntime={() => setRuntimeDetails(true)}
             />
           )}
+          {section === 'models' && <ModelsPage controller={modelController} />}
           {(section === 'skills' || section === 'memory' || section === 'integrations') && (
             <ModulePage section={section} onWorkspace={() => navigate('workspace')} />
           )}
         </div>
-        <footer className="statusbar">
-          <div>
-            <span className={`status-dot ${connected ? '' : 'warning-dot'}`} />
+        <footer className="flex h-5.75 min-h-5.75 items-center justify-between gap-4 border-t border-border bg-surface-toolbar px-2.5 text-mini text-muted max-compact:px-1.75 max-compact:text-tiny">
+          <div className="flex min-w-0 items-center gap-2.5 whitespace-nowrap">
+            <StatusDot warning={!connected} />
             <span>{connected ? 'Local runtime' : 'Reconnecting'}</span>
-            <span className="statusbar-separator" />
-            <span className="statusbar-project">{workspace.name}</span>
+            <span className="h-2.25 w-px bg-border max-compact:hidden" />
+            <span className="max-w-45 truncate max-compact:hidden">{workspace.name}</span>
           </div>
-          <div>
+          <div className="flex min-w-0 items-center gap-2.5 whitespace-nowrap">
             {editor.file && (
               <>
-                <span>
+                <span className="max-compact:hidden">
                   Ln {cursor.line}, Col {cursor.column}
                 </span>
-                <span className="statusbar-separator" />
-                <span>UTF-8</span>
-                <span>{editor.file.language}</span>
+                <span className="h-2.25 w-px bg-border max-compact:hidden" />
+                <span className="max-compact:hidden">UTF-8</span>
+                <span className="max-compact:hidden">{editor.file.language}</span>
               </>
             )}
-            <span className="statusbar-separator" />
-            <span>Read only</span>
+            <span className="h-2.25 w-px bg-border max-compact:hidden" />
+            <span>Editor read only</span>
           </div>
         </footer>
       </main>

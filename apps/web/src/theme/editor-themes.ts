@@ -49,6 +49,7 @@ export function createEditorTheme(
       'list.hoverBackground': color('--surface-hover'),
       'scrollbarSlider.background': color('--scrollbar'),
       'scrollbarSlider.hoverBackground': color('--scrollbar-hover'),
+      'scrollbarSlider.activeBackground': color('--scrollbar-hover'),
       focusBorder: color('--accent'),
     },
   };

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { WorkspaceFiles } from '@peaper/core';
 
-export function fileRoutes(app: FastifyInstance, root: string) {
-  const files = new WorkspaceFiles(root);
+export function fileRoutes(app: FastifyInstance, root: string, dataDirectory?: string) {
+  const files = new WorkspaceFiles(root, dataDirectory);
   app.get<{ Querystring: { path?: string } }>('/api/files', (request) => {
     if (request.query.path !== undefined && typeof request.query.path !== 'string')
       throw Object.assign(new Error('Invalid workspace path.'), { statusCode: 400 });

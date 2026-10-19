@@ -32,15 +32,24 @@ export function useRuntime() {
   useEffect(() => {
     if (!workspaceId) return;
     const abort = new AbortController();
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     void subscribeEvents(
       workspaceId,
       abort.signal,
-      () => {
-        void refreshSessions().catch(() => undefined);
+      (event) => {
+        window.dispatchEvent(new CustomEvent('peaper:runtime-event', { detail: event }));
+        if (!refreshTimer)
+          refreshTimer = setTimeout(() => {
+            refreshTimer = undefined;
+            void refreshSessions().catch(() => undefined);
+          }, 500);
       },
       setConnected,
     );
-    return () => abort.abort();
+    return () => {
+      abort.abort();
+      clearTimeout(refreshTimer);
+    };
   }, [workspaceId, refreshSessions]);
   return {
     snapshot,

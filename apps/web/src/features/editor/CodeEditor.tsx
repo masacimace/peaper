@@ -17,6 +17,8 @@ import 'monaco-editor/editor/contrib/find/browser/findController.js';
 import type { WorkspaceFile } from '@peaper/shared';
 import { readEditorTheme } from '../../theme/editor-themes';
 import { useTheme } from '../../theme/useTheme';
+import { useScrollActivity } from '../../lib/useScrollActivity';
+import { cn } from '../../components/ui/cn';
 
 (self as typeof self & { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
   getWorker: () => new EditorWorker(),
@@ -48,6 +50,8 @@ export default function CodeEditor({
 }) {
   const theme = useTheme();
   const host = useRef<HTMLDivElement>(null);
+  const { scrolling, onScrollActivity } = useScrollActivity();
+  const scrollActivity = useRef(onScrollActivity);
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const models = useRef(new Map<string, monaco.editor.ITextModel>());
   const views = useRef(new Map<string, monaco.editor.ICodeEditorViewState>());
@@ -55,6 +59,9 @@ export default function CodeEditor({
   useEffect(() => {
     position.current = onPosition;
   }, [onPosition]);
+  useEffect(() => {
+    scrollActivity.current = onScrollActivity;
+  }, [onScrollActivity]);
   useEffect(() => {
     if (!host.current) return;
     applyEditorTheme();
@@ -77,7 +84,15 @@ export default function CodeEditor({
       stickyScroll: { enabled: false },
       contextmenu: false,
       renderValidationDecorations: 'off',
-      scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+      scrollbar: {
+        vertical: 'visible',
+        horizontal: 'visible',
+        verticalScrollbarSize: 12,
+        horizontalScrollbarSize: 12,
+        verticalSliderSize: 4,
+        horizontalSliderSize: 4,
+        useShadows: false,
+      },
       automaticLayout: false,
     });
     editor.current = instance;
@@ -86,10 +101,14 @@ export default function CodeEditor({
     const cursor = instance.onDidChangeCursorPosition((event) =>
       position.current(event.position.lineNumber, event.position.column),
     );
+    const scroll = instance.onDidScrollChange((event) => {
+      if (event.scrollTopChanged || event.scrollLeftChanged) scrollActivity.current();
+    });
     const cached = models.current;
     return () => {
       observer.disconnect();
       cursor.dispose();
+      scroll.dispose();
       instance.dispose();
       for (const model of cached.values()) model.dispose();
       cached.clear();
@@ -133,5 +152,11 @@ export default function CodeEditor({
   useEffect(() => {
     editor.current?.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
   }, [wrap]);
-  return <div className="code-editor" ref={host} aria-label={`Read-only editor: ${file.path}`} />;
+  return (
+    <div
+      className={cn('scroll-surface absolute inset-0', scrolling && 'is-scrolling')}
+      ref={host}
+      aria-label={`Read-only editor: ${file.path}`}
+    />
+  );
 }

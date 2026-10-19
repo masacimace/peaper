@@ -162,6 +162,32 @@ try {
   });
   assert.equal(created.status, 201);
   const persistedSession = await created.json();
+  const sessionPath = `${address.origin}/api/sessions/${persistedSession.id}`;
+  const draftSaved = await fetch(`${sessionPath}/draft`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ draft: 'Installed M3 draft survives restart', mode: 'plan' }),
+  });
+  assert.equal(draftSaved.status, 200);
+  assert.equal((await draftSaved.json()).mode, 'plan');
+  const renamed = await fetch(sessionPath, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'Installed continuity proof' }),
+  });
+  assert.equal(renamed.status, 200);
+  const context = await (await fetch(`${sessionPath}/context`, { headers })).json();
+  assert.equal(context.state.draft, 'Installed M3 draft survives restart');
+  assert.ok(context.budget > 0);
+  const exported = await (await fetch(`${sessionPath}/export?format=json`, { headers })).json();
+  assert.equal(JSON.parse(exported.content).session.title, 'Installed continuity proof');
+  const forked = await fetch(`${sessionPath}/fork`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'Installed fork proof', afterRunId: null }),
+  });
+  assert.equal(forked.status, 201);
+  const childSession = await forked.json();
   const conflict = await capture(
     [
       launcher,
@@ -191,8 +217,23 @@ try {
       headers: { Authorization: 'Bearer ' + nextToken },
     })
   ).json();
-  assert.equal(saved.sessions.length, 1);
-  assert.equal(saved.sessions[0].id, persistedSession.id);
+  assert.equal(saved.sessions.length, 2);
+  assert.ok(saved.sessions.some((session) => session.id === persistedSession.id));
+  const restartHeaders = { Authorization: 'Bearer ' + nextToken };
+  const savedDraft = await (
+    await fetch(`${reopened.origin}/api/sessions/${persistedSession.id}/draft`, {
+      headers: restartHeaders,
+    })
+  ).json();
+  assert.equal(savedDraft.draft, 'Installed M3 draft survives restart');
+  assert.equal(savedDraft.mode, 'plan');
+  const savedFork = await (
+    await fetch(`${reopened.origin}/api/sessions/${childSession.id}/context`, {
+      headers: restartHeaders,
+    })
+  ).json();
+  assert.equal(savedFork.state.parent.sessionId, persistedSession.id);
+  assert.equal(savedFork.state.draft, '');
   const artifacts = join(root, 'artifacts');
   await mkdir(artifacts, { recursive: true });
   await copyFile(join(temporaryRoot, packed.filename), join(artifacts, packed.filename));
@@ -216,6 +257,9 @@ try {
           'workspace',
           'sessions',
           'restart-persistence',
+          'continuity-draft-mode-context',
+          'continuity-rename-export',
+          'continuity-fork-persistence',
           'port-conflict',
           'invalid-options',
         ],
@@ -225,7 +269,7 @@ try {
     ) + '\n',
   );
   console.log(
-    `PASS: tarball installation, executable shim, native diagnostics, assets, workspace, sessions, restart persistence, port conflict, and invalid options (${files.length} packaged files).`,
+    `PASS: tarball installation, executable shim, native diagnostics, assets, sessions, M3 draft/mode/context/rename/export/fork persistence, port conflict, and invalid options (${files.length} packaged files).`,
   );
   console.log(`Artifacts: ${join(artifacts, packed.filename)}`);
 } finally {

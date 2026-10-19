@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { cn } from '../components/ui/cn';
 
 export function ResizeHandle({
   axis = 'x',
@@ -20,7 +21,12 @@ export function ResizeHandle({
   const last = useRef<number | null>(null);
   return (
     <div
-      className={`resize-handle resize-${axis}`}
+      className={cn(
+        'relative z-8 shrink-0 touch-none bg-border-subtle outline-none before:absolute hover:bg-accent focus-visible:bg-accent',
+        axis === 'x'
+          ? 'w-px cursor-col-resize before:-inset-x-0.5 before:inset-y-0'
+          : 'h-px cursor-row-resize before:inset-x-0 before:-inset-y-0.5',
+      )}
       role="separator"
       tabIndex={0}
       aria-label={label}
@@ -33,7 +39,7 @@ export function ResizeHandle({
         event.preventDefault();
         last.current = axis === 'x' ? event.clientX : event.clientY;
         event.currentTarget.setPointerCapture(event.pointerId);
-        document.body.classList.add('is-resizing');
+        document.body.dataset.resizing = axis;
       }}
       onPointerMove={(event) => {
         if (last.current === null) return;
@@ -43,11 +49,11 @@ export function ResizeHandle({
       }}
       onPointerUp={() => {
         last.current = null;
-        document.body.classList.remove('is-resizing');
+        delete document.body.dataset.resizing;
       }}
       onLostPointerCapture={() => {
         last.current = null;
-        document.body.classList.remove('is-resizing');
+        delete document.body.dataset.resizing;
       }}
       onKeyDown={(event) => {
         const negative = axis === 'x' ? 'ArrowLeft' : 'ArrowUp';

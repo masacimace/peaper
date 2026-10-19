@@ -1,5 +1,7 @@
-import { Component, Fragment, type ReactNode } from 'react';
 import { AlertCircle, RotateCw } from 'lucide-react';
+import { Component, Fragment, type ReactNode } from 'react';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 export class EditorErrorBoundary extends Component<
   { children: ReactNode },
@@ -12,18 +14,20 @@ export class EditorErrorBoundary extends Component<
   render() {
     if (this.state.failed)
       return (
-        <div className="panel-empty" role="alert">
-          <AlertCircle size={24} strokeWidth={1.3} />
-          <h3>Could not open the editor</h3>
-          <p>Your workspace is still available. Try opening the editor again.</p>
-          <button
-            className="secondary-button"
+        <EmptyState
+          role="alert"
+          icon={AlertCircle}
+          iconSize={24}
+          title="Could not open the editor"
+          description="Your workspace is still available. Try opening the editor again."
+        >
+          <Button
             onClick={() => this.setState(({ retry }) => ({ failed: false, retry: retry + 1 }))}
           >
             <RotateCw size={13} />
             Retry editor
-          </button>
-        </div>
+          </Button>
+        </EmptyState>
       );
     return <Fragment key={this.state.retry}>{this.props.children}</Fragment>;
   }

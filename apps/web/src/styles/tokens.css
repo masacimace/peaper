@@ -4,34 +4,43 @@
 :root {
   --font-ui: 'Inter Variable', sans-serif;
   --font-code: 'JetBrains Mono Variable', monospace;
-  --text-micro: 9px;
-  --text-caption: 10px;
-  --text-label: 11px;
-  --text-small: 12px;
-  --text-body: 13px;
-  --text-heading: 24px;
   --line-height-body: 1.55;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 9px;
   --control-height: 32px;
   --panel-header-height: 35px;
   --layer-navigation: 30;
   --layer-menu: 45;
   --layer-overlay: 60;
-  --shadow-menu: 0 8px 30px var(--shadow-color);
-  --shadow-dialog: 0 24px 100px var(--shadow-color);
   --duration-fast: 120ms;
   --duration-normal: 180ms;
+  --duration-scrollbar-reveal: 200ms;
+  --duration-scrollbar-hide: 400ms;
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+@theme {
+  --spacing: 4px;
+  --text-tiny: 7px;
+  --text-mini: 8px;
+  --text-micro: 9px;
+  --text-caption: 10px;
+  --text-tree: 10.5px;
+  --text-label: 11px;
+  --text-small: 12px;
+  --text-body: 13px;
+  --text-brand: 15px;
+  --text-title: 18px;
+  --text-heading: 24px;
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --breakpoint-compact: 680px;
+  --breakpoint-tablet: 860px;
+  --breakpoint-workspace: 1180px;
+  --shadow-menu: 0 8px 30px var(--shadow-color);
+  --shadow-dialog: 0 24px 100px var(--shadow-color);
+  --shadow-control: 0 1px 2px var(--control-shadow-color);
+  --shadow-composer: 0 2px 3px var(--control-shadow-color);
 }
 :root,
 [data-theme-preview] {
@@ -42,11 +51,52 @@
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
+  --color-sidebar: var(--sidebar);
+  --color-surface-panel: var(--surface-panel);
+  --color-surface-inset: var(--surface-inset);
+  --color-surface-header: var(--surface-header);
+  --color-surface-toolbar: var(--surface-toolbar);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-editor: var(--editor);
+  --color-terminal: var(--terminal);
+  --color-preview: var(--preview);
+  --color-preview-gutter: var(--preview-gutter);
+  --color-preview-page: var(--preview-page-background);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--text);
+  --color-strong: var(--text-strong);
+  --color-muted: var(--text-secondary);
+  --color-subtle: var(--text-tertiary);
+  --color-icon: var(--icon);
   --color-accent: var(--accent);
-  --color-ink: var(--text);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-syntax-comment: var(--syntax-comment);
+  --color-syntax-keyword: var(--syntax-keyword);
+  --color-syntax-string: var(--syntax-string);
+  --color-syntax-number: var(--syntax-number);
+  --color-syntax-type: var(--syntax-type);
+  --color-syntax-delimiter: var(--syntax-delimiter);
+  --color-scrim: var(--scrim);
   --font-sans: var(--font-ui);
   --font-mono: var(--font-code);
+  --spacing-control: var(--control-height);
+  --spacing-panel-header: var(--panel-header-height);
 }
+@custom-variant short (@media (max-height: 650px));
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

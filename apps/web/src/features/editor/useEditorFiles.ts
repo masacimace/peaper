@@ -22,6 +22,11 @@ export function useEditorFiles(workspaceId: string) {
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    const refresh = () => setRevision((value) => value + 1);
+    window.addEventListener('peaper:workspace-changed', refresh);
+    return () => window.removeEventListener('peaper:workspace-changed', refresh);
+  }, []);
+  useEffect(() => {
     try {
       const ordered = activePath
         ? [activePath, ...tabs.filter((path) => path !== activePath)]

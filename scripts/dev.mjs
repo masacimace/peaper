@@ -37,6 +37,9 @@ const builder = await context({
           if (closing || result.errors.length) return;
           await stopRuntime();
           if (closing) return;
+          await cp(resolve(root, 'packages/core/migrations'), resolve(directory, 'migrations'), {
+            recursive: true,
+          });
           const child = fork(resolve(directory, 'cli.js'), process.argv.slice(2), {
             cwd: root,
             execArgv: [],

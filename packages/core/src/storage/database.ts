@@ -89,6 +89,12 @@ export class PeaperDatabase {
         )
         .all(words.map((word) => `"${word}"*`).join(' AND '), workspaceId) as { id: string }[];
       const matches = new Set(ids.map(({ id }) => id));
+      const bodyMatches = this.sqlite
+        .prepare(
+          'SELECT r.session_id AS id FROM run_search f JOIN agent_runs r ON r.id=f.run_id WHERE run_search MATCH ? AND r.workspace_id=? AND r.visible=1 LIMIT 100',
+        )
+        .all(words.map((word) => `"${word}"*`).join(' AND '), workspaceId) as { id: string }[];
+      for (const match of bodyMatches) matches.add(match.id);
       return this.listSessions(workspaceId).filter((session) => matches.has(session.id));
     }
     return this.orm

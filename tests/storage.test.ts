@@ -35,7 +35,7 @@ test('session persistence, FTS triggers, scoped retrieval, and ordered replay su
       .run(second.session.id);
     database.close();
     database = new PeaperDatabase(directory, migrations);
-    assert.equal(database.schemaVersion, 1);
+    assert.equal(database.schemaVersion, 4);
     assert.equal(database.recoverInterrupted(a.id), 1);
     assert.equal(database.recoverInterrupted(a.id), 0);
     assert.equal(

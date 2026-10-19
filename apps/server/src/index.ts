@@ -10,11 +10,14 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { PeaperDatabase, TerminalManager } from '@peaper/core';
+import { PeaperDatabase, TerminalManager, ProviderStore, AgentRuntime } from '@peaper/core';
 import { createSessionSchema, type Health } from '@peaper/shared';
 import { EventStream } from './events.js';
 import { terminalRoute } from './terminal.js';
 import { fileRoutes } from './files.js';
+import { agentRoutes } from './agent.js';
+import { modelRoutes } from './models.js';
+import { continuityRoutes } from './continuity.js';
 
 interface DevelopmentFrontend {
   middleware: (
@@ -31,6 +34,7 @@ export interface ServerOptions {
   distributionDirectory: string;
   version: string;
   token?: string;
+  providerStore?: ProviderStore;
   createDevelopmentFrontend?: (options: {
     server: Server;
     nonce: string;
@@ -50,6 +54,10 @@ export async function createPeaperServer(options: ServerOptions) {
   database.recoverInterrupted(workspace.id);
   const terminals = new TerminalManager(workspace.path);
   const stream = new EventStream(database, workspace.id);
+  const providers = options.providerStore ?? new ProviderStore(options.dataDirectory);
+  const agent = new AgentRuntime(database, workspace, options.dataDirectory, providers, () =>
+    stream.publish(),
+  );
   const token = options.token ?? randomBytes(32).toString('hex');
   const authenticate = (candidate: string) => {
     const actual = Buffer.from(candidate);
@@ -128,10 +136,17 @@ export async function createPeaperServer(options: ServerOptions) {
     platform: `${process.platform}/${process.arch}`,
     database: { status: 'ready', fts5: true, schemaVersion: database.schemaVersion },
     terminal: { shell: terminals.shell, active: terminals.active, isolation: 'host' },
-    agent: 'not-configured',
+    agent: providers.get()?.verifiedAt
+      ? 'ready'
+      : providers.get()
+        ? 'configured'
+        : 'not-configured',
   }));
   app.get('/api/workspace', () => workspace);
-  fileRoutes(app, workspace.path);
+  fileRoutes(app, workspace.path, options.dataDirectory);
+  agentRoutes(app, agent, providers, () => stream.publish());
+  modelRoutes(app, providers, agent, () => stream.publish());
+  continuityRoutes(app, agent, providers);
   app.get<{ Querystring: { q?: string } }>('/api/sessions', (request) => {
     const query = request.query.q || '';
     if (typeof query !== 'string' || query.length > 200)
@@ -143,6 +158,9 @@ export async function createPeaperServer(options: ServerOptions) {
   app.post('/api/sessions', (request, reply) => {
     const { title } = createSessionSchema.parse(request.body);
     const { session } = database.createSession(workspace.id, title);
+    const defaults = providers.snapshot().defaults;
+    if (defaults.modelId)
+      agent.store.select(session.id, { modelId: defaults.modelId, effort: defaults.effort });
     stream.publish();
     return reply.code(201).send(session);
   });
@@ -161,6 +179,7 @@ export async function createPeaperServer(options: ServerOptions) {
   });
   terminalRoute(app, terminals, authenticate);
   app.addHook('preClose', async () => {
+    await agent.close();
     stream.close();
     await terminals.close();
   });
@@ -195,5 +214,5 @@ export async function createPeaperServer(options: ServerOptions) {
       return reply.sendFile('index.html');
     });
   }
-  return { app, workspace, database, terminals, token };
+  return { app, workspace, database, terminals, token, agent, providers };
 }

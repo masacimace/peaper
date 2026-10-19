@@ -2,9 +2,9 @@
 
 A local coding workspace, launched from your project and opened in your browser.
 
-This is the **M1 Foundation** preview, with the modular workspace redesign. The launcher,
-session storage, local file browser, read-only editor, live preview, and interactive terminal work.
-Model integration and the coding loop begin in M2.
+This is the **M3 Continuity** preview, built on the modular coding workspace. Configure an
+OpenRouter or OpenAI-compatible model in Models, test streaming/tool support, and send a task
+from the Agent panel. File edits and commands require approval before execution.
 
 ## Requirements
 
@@ -46,7 +46,80 @@ Development backend output lives in `node_modules/.cache/peaper/dev`, independen
 Use `pnpm build` then `pnpm start` for the distribution build. Use a separate port/data directory
 when running more than one instance, for example `pnpm dev --no-open --port 4318 --data-dir .peaper-local/dev`.
 
-## What works in M1
+## Coding agent in M2
+
+- Models → Providers manages named OpenRouter and custom Chat Completions-compatible connections.
+  Add multiple accounts, check a connection, and refresh its model catalog without generating text.
+  Model Catalog supports search, provider filters, favorites, and Show in chat; endpoints without a
+  catalog can use a manual model ID. Open model details to set output limits and supported parameters,
+  then Test model to verify streaming/tool support. This explicit test can use provider credits.
+- Models → Defaults selects the model/effort for new sessions. The chat picker lists enabled models
+  with favorites/recent ordering and only the model's advertised effort choices. Effort has no visible
+  label in the composer. Selections persist per session; changes affect subsequent tasks, while an
+  active task retains its captured model, credentials, and options. See [model management](docs/Models-Management.md).
+- A single agent per session streams responses, inspects files/directories, searches text/regex
+  and filenames, proposes file creation/replacement or exact text edits, runs commands, updates
+  the Tasks checklist, and asks structured questions with choices or free-text answers.
+- Review a proposed diff or command and choose Allow once or Deny. Reads/searches are restricted
+  to bounded workspace text; edits and commands always require approval. Edits recheck the file
+  after approval and reject conflicting user changes. The Monaco editor remains a read-only viewer.
+- Command activity shows actual output, exit code, timeout/cancellation and truncation status.
+  Agent commands use noninteractive shells separately from the interactive Terminal panel.
+  They have a 60-second timeout and 32,000-character output cap; use your terminal for persistent
+  dev servers. Cancel task stops model generation, pending questions/permissions, and its command tree.
+- Transcript, activity, proposed/applied changes, todos and completed tool messages are stored
+  locally. Reloading reads the current run without re-executing it. Runtime restart marks unfinished
+  runs interrupted. M3 adds the continuation controls described below.
+
+## Continuity in M3
+
+- Session drafts and Build/Plan mode autosave to the runtime, with a browser cache for immediate
+  recovery. The last selected session is remembered. Sessions searches titles and user/assistant
+  conversation text; its action menu renames and exports complete Markdown or JSON transcripts.
+- The control above the composer selects Build or Plan. Plan can read/search, ask questions,
+  update todos, and save a reviewable plan; the backend blocks file writes and commands.
+  Review plan opens an editable plan. Save revisions before Implement reviewed plan starts a
+  Build task; every resulting write or command still needs its own approval.
+- Context opens estimated input use, model context metadata, output reserve, saved recap and
+  instruction sources. Compact older turns summarizes older completed turns using the selected
+  model, retaining two recent turns and the full original transcript. Automatic compaction runs
+  near the input budget before a new task. Compaction can consume provider credits. Estimates
+  use UTF-8 size with a conservative reserve; they are not a tokenizer or a billing estimate.
+- Instructions load from `~/.peaper/PEAPER.md`, project `PEAPER.md`, and the selected/tool file's
+  ancestor directories. Narrower rules apply within their directory, subject to the human request
+  and enforced permissions. New scopes are shown to the model before the action executes.
+  Context shows current sources; Instructions used on each task preserves the source text used.
+- Resume appears on the latest interrupted, cancelled or failed task. It creates a new model
+  turn with recovery context and fresh permissions; reconnect and restart never replay tools.
+- Session actions → Fork / rewind copies a chosen conversation prefix into an independent
+  session. Forks share the workspace and model selection, have independent future history/drafts,
+  and do not clone files or replay inherited actions.
+- Preview rewind lists later turns and conflict-checked file snapshots. Select reviewed files
+  and use Restore selected files first if needed; Rewind conversation only is a separate action.
+  Rewind archives later turns from active model context/search while keeping them in exports.
+  It preserves unsent drafts and restores the retained plan for review when applicable.
+
+Snapshots cover successful Peaper file-tool edits, including the pre-edit contents and new-file
+creation. Manual/external changes, interrupted writes and broken checkpoint chains block restore.
+Restore rechecks each file before writing; a partial failure reports how many files changed and
+leaves conversation history intact. Commands, databases and external service effects are never
+rolled back. Restore files before rewinding away their turns; forks have no snapshots for inherited
+changes. See [M3 implementation and limits](docs/M3-Continuity-Implementation.md).
+
+Prompts and tool results used by the agent are sent to the configured model provider. API keys
+stay in the backend, encrypted in `provider.json` with a local `provider.key` master key in the
+Peaper data directory. The API returns configuration/status only. Both files rely on local
+filesystem access protection; encryption does not isolate them from your own account. Keep the
+data directory private and outside source control. Provider errors do not echo response bodies.
+Changing the endpoint does not carry an existing credential to the new destination.
+
+The agent currently allows at most 20 model steps and 80 tool calls per task, four active sessions,
+128 KB text edits, bounded search and output, ten-minute permission/question waits, and a
+twenty-minute overall task limit. A limit or failure is shown explicitly; it is not reported as success.
+Approval is enforced by the backend, **not an OS sandbox**. An approved command uses your host
+account permissions and may access files/network or have effects that cancellation cannot undo.
+
+## Workspace foundation
 
 - Branded CLI, browser launch, loopback binding, startup status, configurable port/workspace,
   and native diagnostics.
@@ -69,9 +142,9 @@ when running more than one instance, for example `pnpm dev --no-open --port 4318
 - Runtime details, loading/error/reconnecting states, responsive navigation, keyboard search,
   reduced-motion support, and bundled Inter/JetBrains Mono fonts.
 
-The agent composer supports local in-memory drafts; sending remains disabled until model
-integration is implemented. Agent/Tasks/Context tabs show the available workspace information.
-Sessions currently store metadata; there is no simulated assistant response or tool execution.
+The agent composer retains per-session drafts locally and in SQLite. Agent/Tasks/Context tabs show the
+conversation, tool activity, checklist, workspace and selected file. Skills, Memory and Integrations
+managers remain future milestones.
 
 `Ctrl+B` toggles navigation, `Ctrl+K` opens a new session, and `Ctrl+backtick` toggles the terminal.
 Resize handles also accept arrow keys. Narrow windows use focused panel views while retaining
@@ -129,9 +202,11 @@ fonts, SQL migrations, and README. Runtime/native dependencies are resolved by n
 | `apps/cli`        | Launcher, options, banner, diagnostics                          |
 | `apps/server`     | Fastify API, local access checks, SSE, WebSocket, static assets |
 | `apps/web`        | React workspace UI and global design tokens                     |
-| `packages/core`   | Database, migrations, terminal lifecycle, native probes         |
+| `packages/core`   | Agent/tools, providers, continuity, storage, terminal lifecycle |
 | `packages/shared` | Zod API contracts and event types                               |
 | `scripts`         | Build, development watcher, installed-package validation        |
 | `tests`           | Persistence, migration, HTTP/SSE, and real PTY behavior         |
 
 Scope and follow-up milestones are described in [the implementation blueprint](docs/Peaper-Implementation-Blueprint.md).
+The React UI uses Tailwind v4, shared UI components, and semantic theme tokens; see
+[frontend styling conventions](docs/Frontend-Styling.md).

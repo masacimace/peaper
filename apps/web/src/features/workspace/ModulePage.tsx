@@ -1,4 +1,8 @@
 import { ArrowLeft, BookOpen, Boxes, Layers3 } from 'lucide-react';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Page, PageHeader } from '../../components/ui/Page';
+import { Badge } from '../../components/ui/Status';
 
 const modules = {
   skills: {
@@ -37,26 +41,24 @@ export function ModulePage({
   onWorkspace: () => void;
 }) {
   const module = modules[section];
-  const Icon = module.icon;
   return (
-    <div className="manager-page">
-      <div className="manager-heading">
-        <div>
-          <span className="section-kicker">{module.kicker}</span>
-          <h1>{module.title}</h1>
-          <p>{module.description}</p>
-        </div>
-        <span className="small-badge">Not available yet</span>
-      </div>
-      <div className="manager-empty module-empty">
-        <Icon size={32} strokeWidth={1.2} />
-        <h2>{module.empty}</h2>
-        <p>{module.detail}</p>
-        <button className="secondary-button" onClick={onWorkspace}>
+    <Page>
+      <PageHeader kicker={module.kicker} title={module.title} description={module.description}>
+        <Badge className="max-compact:text-mini">Not available yet</Badge>
+      </PageHeader>
+      <EmptyState
+        variant="page"
+        className="pt-20 max-compact:pt-16.25"
+        icon={module.icon}
+        iconSize={32}
+        title={module.empty}
+        description={module.detail}
+      >
+        <Button onClick={onWorkspace}>
           <ArrowLeft size={14} />
           Back to workspace
-        </button>
-      </div>
-    </div>
+        </Button>
+      </EmptyState>
+    </Page>
   );
 }
