@@ -9,6 +9,11 @@ import { ErrorNotice, errorStyles } from '../../components/ui/Notice';
 import { api } from '../../lib/api';
 import { AssistantMessage } from './AssistantMessage';
 import { activityOutput, activityStatus } from './tool-output';
+import { KnowledgeView } from '../knowledge/KnowledgeView';
+import { MemorySuggestion } from '../memory/MemorySuggestion';
+import { SkillActivity } from '../skills/SkillActivity';
+import { isSkillActivity } from '../skills/skill-activity';
+import { MemoryTaskLens } from '../memory/MemoryTaskLens';
 
 const outputStyles =
   'max-h-70 overflow-auto p-2 font-mono text-caption leading-[1.6] whitespace-pre-wrap wrap-anywhere';
@@ -220,12 +225,12 @@ export function RunView({ run, onResume }: { run: AgentRun; onResume?: () => Pro
         <span className="text-caption text-subtle">You</span>
         <p className="mt-1 leading-[1.65] whitespace-pre-wrap">{run.prompt}</p>
       </div>
-      <div className="mt-4 mb-2 flex items-center gap-2">
-        <span className="flex items-center gap-1 font-[550] text-strong">
+      <div className="mt-4 mb-2 flex flex-wrap items-center gap-2">
+        <span className="flex min-w-0 items-center gap-1 font-[550] text-strong">
           {running && (
-            <LoaderCircle size={12} className="animate-spin motion-reduce:animate-none" />
+            <LoaderCircle size={12} className="shrink-0 animate-spin motion-reduce:animate-none" />
           )}
-          Peaper
+          <span className="min-w-0 wrap-anywhere">{run.knowledge.persona?.name || 'Peaper'}</span>
         </span>
         <small className="text-muted">{run.status}</small>
         {run.mode === 'plan' && (
@@ -254,35 +259,38 @@ export function RunView({ run, onResume }: { run: AgentRun; onResume?: () => Pro
         )}
       </div>
       {run.text && <AssistantMessage text={run.text} />}
+      <SkillActivity run={run} />
       <div className="my-3">
-        {run.activities.map((activity) => (
-          <RunDetails
-            key={activity.id}
-            title={activity.name.replaceAll('_', ' ')}
-            status={activityStatus(activity)}
-            icon={
-              activity.name === 'run_command' ? (
-                <Terminal size={12} />
-              ) : (
-                <span
-                  className={cn(
-                    'size-1.25 shrink-0 rounded-full',
-                    activityColors[activity.status] || 'bg-warning',
-                  )}
-                />
-              )
-            }
-          >
-            <pre className={cn(outputStyles, 'border-b border-border text-muted')}>
-              {JSON.stringify(activity.input, null, 2)}
-            </pre>
-            {activity.output && (
-              <pre className={outputStyles} aria-label={`${activity.name} output`}>
-                {activityOutput(activity)}
+        {run.activities
+          .filter((activity) => !isSkillActivity(activity))
+          .map((activity) => (
+            <RunDetails
+              key={activity.id}
+              title={activity.name.replaceAll('_', ' ')}
+              status={activityStatus(activity)}
+              icon={
+                activity.name === 'run_command' ? (
+                  <Terminal size={12} />
+                ) : (
+                  <span
+                    className={cn(
+                      'size-1.25 shrink-0 rounded-full',
+                      activityColors[activity.status] || 'bg-warning',
+                    )}
+                  />
+                )
+              }
+            >
+              <pre className={cn(outputStyles, 'border-b border-border text-muted')}>
+                {JSON.stringify(activity.input, null, 2)}
               </pre>
-            )}
-          </RunDetails>
-        ))}
+              {activity.output && (
+                <pre className={outputStyles} aria-label={`${activity.name} output`}>
+                  {activityOutput(activity)}
+                </pre>
+              )}
+            </RunDetails>
+          ))}
       </div>
       {run.permissions.map((permission) => (
         <PermissionView key={permission.id} permission={permission} runId={run.id} />
@@ -353,6 +361,11 @@ export function RunView({ run, onResume }: { run: AgentRun; onResume?: () => Pro
             : 'Output usage unavailable'}
         </div>
       )}
+      <MemoryTaskLens run={run} />
+      <KnowledgeView snapshot={run.knowledge} showSkills={false} showMemory={false} />
+      {run.memorySuggestions.map((suggestion) => (
+        <MemorySuggestion key={suggestion.id} suggestion={suggestion} />
+      ))}
     </article>
   );
 }

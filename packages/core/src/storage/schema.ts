@@ -31,6 +31,7 @@ export const events = sqliteTable('events', {
       'provider.updated',
       'models.updated',
       'session.updated',
+      'knowledge.updated',
     ],
   }).notNull(),
   payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),

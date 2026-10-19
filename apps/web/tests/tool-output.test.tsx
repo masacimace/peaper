@@ -31,4 +31,10 @@ test('command status uses the runner result and never infers success from stream
   });
   assert.equal(activityStatus(activity), 'timed out');
   assert.match(activityOutput(activity), /truncated/);
+  activity.name = 'run_skill_script';
+  assert.equal(activityStatus(activity), 'timed out');
+  activity.output = JSON.stringify({ exitCode: 0, output: 'SCRIPT_OK', cancelled: true });
+  assert.equal(activityStatus(activity), 'cancelled');
+  activity.status = 'running';
+  assert.equal(activityStatus(activity), 'running');
 });

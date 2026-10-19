@@ -71,7 +71,14 @@ export class AgentStore {
     settings?: Partial<
       Pick<
         AgentRun,
-        'connectionId' | 'connectionName' | 'effort' | 'mode' | 'resumeOf' | 'selectedFile'
+        | 'connectionId'
+        | 'connectionName'
+        | 'effort'
+        | 'mode'
+        | 'resumeOf'
+        | 'selectedFile'
+        | 'knowledgeSelection'
+        | 'memorySelection'
       >
     >,
   ) {
@@ -84,6 +91,9 @@ export class AgentStore {
       model,
       mode: 'build',
       instructions: [],
+      knowledgeSelection: { profileId: 'default', skillIds: [] },
+      knowledge: { persona: null, skills: [], memories: [], warnings: [] },
+      memorySuggestions: [],
       ...settings,
       status: 'running',
       text: '',
@@ -130,7 +140,12 @@ export class AgentStore {
     this.publish();
   }
   event(
-    type: 'agent.updated' | 'provider.updated' | 'models.updated' | 'session.updated',
+    type:
+      | 'agent.updated'
+      | 'provider.updated'
+      | 'models.updated'
+      | 'session.updated'
+      | 'knowledge.updated',
     sessionId: string | null,
     payload: Record<string, unknown> = {},
   ) {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { knowledgeSnapshotSchema } from './knowledge.js';
 
 export const agentModeSchema = z.enum(['build', 'plan']);
 export type AgentMode = z.infer<typeof agentModeSchema>;
@@ -45,6 +46,7 @@ export const contextInfoSchema = z.object({
   compactedTurns: z.number(),
   totalTurns: z.number(),
   instructions: z.array(instructionSchema),
+  knowledge: knowledgeSnapshotSchema.optional(),
 });
 export type ContextInfo = z.infer<typeof contextInfoSchema>;
 export const restoreFileSchema = z.object({

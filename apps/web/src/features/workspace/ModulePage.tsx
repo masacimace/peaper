@@ -1,28 +1,10 @@
-import { ArrowLeft, BookOpen, Boxes, Layers3 } from 'lucide-react';
+import { ArrowLeft, Layers3 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Page, PageHeader } from '../../components/ui/Page';
 import { Badge } from '../../components/ui/Status';
 
 const modules = {
-  skills: {
-    title: 'Skills',
-    kicker: 'AGENT CAPABILITIES',
-    description: 'Reusable ways of working, close to your code.',
-    icon: Boxes,
-    empty: 'Your skills will live here',
-    detail:
-      'Skill discovery, local imports, and personal or project procedures will use this workspace manager.',
-  },
-  memory: {
-    title: 'Memory',
-    kicker: 'PROJECT KNOWLEDGE',
-    description: 'Keep the decisions that matter.',
-    icon: BookOpen,
-    empty: 'A place for lasting context',
-    detail:
-      'Global notes, project decisions, and session recaps will be managed here with clear sources and scope.',
-  },
   integrations: {
     title: 'Integrations',
     kicker: 'CONNECTED TOOLS',

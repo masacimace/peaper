@@ -12,7 +12,9 @@ function result(activity: ToolActivity): Record<string, unknown> | null {
   }
 }
 export function activityStatus(activity: ToolActivity) {
-  const value = activity.name === 'run_command' ? result(activity) : null;
+  const value = ['run_command', 'run_skill_script'].includes(activity.name)
+    ? result(activity)
+    : null;
   if (value?.cancelled) return 'cancelled';
   if (value?.timedOut) return 'timed out';
   if (value && (typeof value.exitCode === 'number' || value.exitCode === null))
@@ -23,11 +25,16 @@ export function activityOutput(activity: ToolActivity): string {
   const value = result(activity);
   if (!value) return activity.output ?? '';
   if (typeof value.error === 'string') return value.error;
-  if (activity.name === 'run_command' && typeof value.output === 'string') {
+  if (
+    ['run_command', 'run_skill_script'].includes(activity.name) &&
+    typeof value.output === 'string'
+  ) {
     return `${value.output}\nExit code: ${value.exitCode ?? 'unknown'}${value.timedOut ? '\nTimed out' : ''}${value.cancelled ? '\nCancelled' : ''}${value.truncated ? '\nOutput truncated at the configured limit' : ''}`;
   }
   if (activity.name === 'read_file' && typeof value.content === 'string')
     return `${value.path} · lines ${value.startLine}–${value.endLine} of ${value.totalLines}\n\n${value.content}`;
+  if (activity.name === 'read_skill_resource' && typeof value.content === 'string')
+    return `${value.path}\n\n${value.content}`;
   if (activity.name === 'list_directory' && Array.isArray(value.entries))
     return (
       (value.entries as { name: string; kind: string }[])

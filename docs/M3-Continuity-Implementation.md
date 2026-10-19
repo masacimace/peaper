@@ -114,5 +114,5 @@ fork/rename/export and responsive layouts. No paid provider generation is requir
 validation. M2's live OpenRouter result remains recorded in its own implementation document;
 M3 continuity is validated with deterministic local provider responses and actual file writes.
 
-Skills, Memory and Persona remain M4. MCP/hooks, Git/worktrees and background task management
+Skills, Memory and Persona are delivered in [M4 Knowledge](M4-Knowledge-Implementation.md). MCP/hooks, Git/worktrees and background task management
 remain M5. npm publication and broader native/platform validation remain M6.

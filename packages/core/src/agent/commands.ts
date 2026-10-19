@@ -15,19 +15,34 @@ export async function runCommand(
   onOutput: (output: string) => void,
   timeoutMs = 60000,
 ): Promise<CommandResult> {
-  signal.throwIfAborted();
   const windows = process.platform === 'win32';
-  const child = spawn(
+  return runProgram(
     windows ? 'powershell.exe' : '/bin/sh',
     windows ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command] : ['-c', command],
-    {
-      cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-      detached: !windows,
-      env: { ...process.env, CI: '1', NO_COLOR: '1' },
-    },
+    cwd,
+    signal,
+    onOutput,
+    timeoutMs,
   );
+}
+/** Structured script arguments bypass shell parsing while sharing the command lifecycle. */
+export async function runProgram(
+  program: string,
+  args: string[],
+  cwd: string,
+  signal: AbortSignal,
+  onOutput: (output: string) => void,
+  timeoutMs = 60000,
+): Promise<CommandResult> {
+  signal.throwIfAborted();
+  const windows = process.platform === 'win32';
+  const child = spawn(program, args, {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+    detached: !windows,
+    env: { ...process.env, CI: '1', NO_COLOR: '1' },
+  });
   let output = '';
   let truncated = false;
   let timedOut = false;

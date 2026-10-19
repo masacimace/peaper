@@ -18,6 +18,7 @@ import { fileRoutes } from './files.js';
 import { agentRoutes } from './agent.js';
 import { modelRoutes } from './models.js';
 import { continuityRoutes } from './continuity.js';
+import { knowledgeRoutes } from './knowledge.js';
 
 interface DevelopmentFrontend {
   middleware: (
@@ -147,6 +148,7 @@ export async function createPeaperServer(options: ServerOptions) {
   agentRoutes(app, agent, providers, () => stream.publish());
   modelRoutes(app, providers, agent, () => stream.publish());
   continuityRoutes(app, agent, providers);
+  knowledgeRoutes(app, agent);
   app.get<{ Querystring: { q?: string } }>('/api/sessions', (request) => {
     const query = request.query.q || '';
     if (typeof query !== 'string' || query.length > 200)

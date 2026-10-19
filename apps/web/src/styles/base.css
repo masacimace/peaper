@@ -51,6 +51,10 @@
     background: var(--surface);
     color: var(--text);
   }
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--accent);
+  }
   ::selection {
     background: var(--selection);
   }

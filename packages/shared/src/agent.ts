@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { effortSchema, modelSelectionSchema } from './models.js';
 import { agentModeSchema, instructionSchema } from './continuity.js';
+import {
+  contextSelectionSchema,
+  knowledgeSnapshotSchema,
+  memoryProposalSchema,
+  memorySelectionSchema,
+} from './knowledge.js';
 
 export const providerInputSchema = z.object({
   kind: z.enum(['openrouter', 'compatible']),
@@ -70,6 +76,15 @@ export const agentRunSchema = z.object({
   resumeOf: z.string().optional(),
   inheritedFrom: z.string().optional(),
   instructions: z.array(instructionSchema).default([]),
+  knowledgeSelection: contextSelectionSchema.default({ profileId: 'default', skillIds: [] }),
+  knowledge: knowledgeSnapshotSchema.default({
+    persona: null,
+    skills: [],
+    memories: [],
+    warnings: [],
+  }),
+  memorySuggestions: z.array(memoryProposalSchema).default([]),
+  memorySelection: memorySelectionSchema.optional(),
   plan: z.string().optional(),
   context: z
     .object({
@@ -99,5 +114,7 @@ export const sendMessageSchema = z.object({
   selectedFile: z.string().max(2048).nullable().optional(),
   selection: modelSelectionSchema.optional(),
   mode: agentModeSchema.optional(),
+  context: contextSelectionSchema.optional(),
+  memory: memorySelectionSchema.optional(),
 });
 export const agentRunsSchema = z.object({ runs: z.array(agentRunSchema) });

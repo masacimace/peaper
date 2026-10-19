@@ -12,6 +12,17 @@ import {
   continuityStateSchema,
   contextInfoSchema,
   rewindPreviewSchema,
+  knowledgeStateSchema,
+  contextSelectionSchema,
+  skillCatalogSchema,
+  skillDetailSchema,
+  skillInspectionSchema,
+  personaSchema,
+  memorySchema,
+  memoryProposalSchema,
+  memoryLensSchema,
+  memoryReviewSchema,
+  memoryEvidenceViewSchema,
 } from '@peaper/shared';
 import type {
   RuntimeEvent,
@@ -20,10 +31,20 @@ import type {
   ModelState,
   ModelOptions,
   AgentMode,
+  ContextSelection,
+  MemoryInput,
+  MemoryNote,
+  Persona,
+  MemorySelection,
 } from '@peaper/shared';
 import { z } from 'zod';
 
 const fragment = new URLSearchParams(window.location.hash.slice(1));
+export type MemoryReviewOptions = {
+  proposalId?: string;
+  previousId?: string;
+  previousRevision?: number;
+};
 const incoming = fragment.get('token');
 if (incoming) {
   sessionStorage.setItem('peaper:token', incoming);
@@ -48,6 +69,112 @@ async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit
 }
 
 export const api = {
+  knowledge: (sessionId?: string) =>
+    request(
+      `/knowledge${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`,
+      knowledgeStateSchema,
+    ),
+  selectContext: (id: string, selection: ContextSelection) =>
+    request(`/sessions/${encodeURIComponent(id)}/context-selection`, contextSelectionSchema, {
+      method: 'PUT',
+      body: JSON.stringify(selection),
+    }),
+  skill: (id: string) => request(`/skills/${encodeURIComponent(id)}`, skillDetailSchema),
+  skillInspection: (id: string) =>
+    request(`/skills/${encodeURIComponent(id)}/inspection`, skillInspectionSchema),
+  skillResource: (id: string, path: string) =>
+    request(
+      `/skills/${encodeURIComponent(id)}/resource?path=${encodeURIComponent(path)}`,
+      z.object({ path: z.string(), content: z.string(), digest: z.string() }),
+    ),
+  saveSkill: (input: {
+    name: string;
+    scope: 'personal' | 'project';
+    document: string;
+    digest?: string;
+  }) =>
+    request(
+      input.digest ? `/skills/${encodeURIComponent(`${input.scope}:${input.name}`)}` : '/skills',
+      skillDetailSchema,
+      { method: input.digest ? 'PUT' : 'POST', body: JSON.stringify(input) },
+    ),
+  importSkill: (path: string, scope: 'personal' | 'project') =>
+    request('/skills/import', skillDetailSchema, {
+      method: 'POST',
+      body: JSON.stringify({ path, scope }),
+    }),
+  skillPreference: (id: string, enabled: boolean, automatic: boolean) =>
+    request(`/skills/${encodeURIComponent(id)}`, skillCatalogSchema, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled, automatic }),
+    }),
+  savePersona: (
+    value: Pick<Persona, 'name' | 'description' | 'scope' | 'instructions' | 'enabled'> &
+      Partial<Pick<Persona, 'id' | 'revision'>>,
+  ) =>
+    request(value.id ? `/personas/${encodeURIComponent(value.id)}` : '/personas', personaSchema, {
+      method: value.id ? 'PUT' : 'POST',
+      body: JSON.stringify(value),
+    }),
+  deletePersona: (id: string, revision: number) =>
+    request(`/personas/${encodeURIComponent(id)}`, z.object({ deleted: z.boolean() }), {
+      method: 'DELETE',
+      body: JSON.stringify({ revision }),
+    }),
+  defaultPersona: (id: string) =>
+    request('/persona-default', z.object({ id: z.string() }), {
+      method: 'PUT',
+      body: JSON.stringify({ id }),
+    }),
+  memories: (q = '', scope = 'all', sessionId?: string) =>
+    request(
+      `/memories?${new URLSearchParams({ q, scope, ...(sessionId ? { sessionId } : {}) })}`,
+      z.object({ memories: z.array(memorySchema) }),
+    ),
+  memoryLens: (query: string, selection: MemorySelection, sessionId?: string) =>
+    request('/memory-lens', memoryLensSchema, {
+      method: 'POST',
+      body: JSON.stringify({ query, selection, sessionId }),
+    }),
+  memoryEvidence: (id: string) =>
+    request(`/memories/${encodeURIComponent(id)}/evidence`, memoryEvidenceViewSchema),
+  reviewMemory: (value: MemoryInput, options: MemoryReviewOptions = {}) =>
+    request('/memory-review', memoryReviewSchema, {
+      method: 'POST',
+      body: JSON.stringify({ value, ...options }),
+    }),
+  commitMemory: (
+    value: MemoryInput,
+    options: MemoryReviewOptions & {
+      inputDigest: string;
+      evidenceDigest: string;
+      action: 'create' | 'update';
+      targetId?: string;
+      targetRevision?: number;
+    },
+  ) =>
+    request(
+      '/memory-review/commit',
+      z.object({ memory: memorySchema.nullable(), proposal: memoryProposalSchema.nullable() }),
+      { method: 'POST', body: JSON.stringify({ value, ...options }) },
+    ),
+  saveMemory: (value: MemoryInput, previous?: MemoryNote) =>
+    request(previous ? `/memories/${encodeURIComponent(previous.id)}` : '/memories', memorySchema, {
+      method: previous ? 'PUT' : 'POST',
+      body: JSON.stringify({ ...value, ...(previous ? { revision: previous.revision } : {}) }),
+    }),
+  deleteMemory: (id: string, revision: number) =>
+    request(`/memories/${encodeURIComponent(id)}`, z.object({ deleted: z.boolean() }), {
+      method: 'DELETE',
+      body: JSON.stringify({ revision }),
+    }),
+  memorySuggestion: (id: string) =>
+    request(`/memory-suggestions/${encodeURIComponent(id)}`, memoryProposalSchema),
+  decideMemory: (id: string, action: 'save' | 'dismiss', edited?: MemoryInput) =>
+    request(`/memory-suggestions/${encodeURIComponent(id)}`, memoryProposalSchema, {
+      method: 'POST',
+      body: JSON.stringify({ action, edited }),
+    }),
   sessionDraft: (id: string) =>
     request(`/sessions/${encodeURIComponent(id)}/draft`, continuityStateSchema),
   saveDraft: (id: string, draft: string, mode: AgentMode) =>
@@ -166,10 +293,12 @@ export const api = {
     selectedFile: string | null,
     selection?: ModelSelection,
     mode?: AgentMode,
+    context?: ContextSelection,
+    memory?: MemorySelection,
   ) =>
     request(`/sessions/${encodeURIComponent(sessionId)}/messages`, agentRunSchema, {
       method: 'POST',
-      body: JSON.stringify({ message, selectedFile, selection, mode }),
+      body: JSON.stringify({ message, selectedFile, selection, mode, context, memory }),
     }),
   cancelRun: (id: string) =>
     request(`/runs/${encodeURIComponent(id)}/cancel`, agentRunSchema, { method: 'POST' }),

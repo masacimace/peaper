@@ -188,6 +188,80 @@ try {
   });
   assert.equal(forked.status, 201);
   const childSession = await forked.json();
+  async function knowledgeRequest(origin, auth, path, method = 'GET', payload) {
+    const response = await fetch(`${origin}/api${path}`, {
+      method,
+      headers: { ...auth, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
+    });
+    assert.equal(response.status, 200, `${path}: ${await response.clone().text()}`);
+    return response.json();
+  }
+  const installedProfile = await knowledgeRequest(address.origin, headers, '/personas', 'POST', {
+    name: 'Package reviewer',
+    instructions: 'Inspect code and report actual checks.',
+    scope: 'project',
+  });
+  const installedSkill = await knowledgeRequest(address.origin, headers, '/skills', 'POST', {
+    name: 'installed-check',
+    scope: 'project',
+    document:
+      '---\nname: installed-check\ndescription: Verify the installed workspace when reviewing this package.\n---\nInspect the workspace and request approval for commands.\n',
+  });
+  assert.equal(installedSkill.id, 'project:installed-check');
+  const installedInspection = await knowledgeRequest(
+    address.origin,
+    headers,
+    '/skills/project%3Ainstalled-check/inspection',
+  );
+  assert.equal(installedInspection.skill.id, installedSkill.id);
+  assert.deepEqual(installedInspection.references, []);
+  assert.deepEqual(installedInspection.runtimes, []);
+  const installedMemory = await knowledgeRequest(address.origin, headers, '/memories', 'POST', {
+    title: 'Package memory',
+    body: 'PACKAGE_M4_NOTE persists through restart.',
+    scope: 'global',
+    pinned: true,
+    sessionId: persistedSession.id,
+  });
+  const memoryPreview = await knowledgeRequest(address.origin, headers, '/memory-lens', 'POST', {
+    sessionId: persistedSession.id,
+    query: 'PACKAGE',
+    selection: { includeIds: [], excludeIds: [installedMemory.id] },
+  });
+  assert.ok(!memoryPreview.memories.some((note) => note.id === installedMemory.id));
+  const proposedValue = {
+    title: 'Package memory',
+    body: 'PACKAGE_M4_NOTE reviewed update persists through restart.',
+    scope: 'global',
+    pinned: true,
+    sessionId: persistedSession.id,
+  };
+  const memoryReview = await knowledgeRequest(address.origin, headers, '/memory-review', 'POST', {
+    value: proposedValue,
+  });
+  const reviewed = await knowledgeRequest(
+    address.origin,
+    headers,
+    '/memory-review/commit',
+    'POST',
+    {
+      value: proposedValue,
+      inputDigest: memoryReview.inputDigest,
+      evidenceDigest: memoryReview.evidenceDigest,
+      action: 'update',
+      targetId: installedMemory.id,
+      targetRevision: installedMemory.revision,
+    },
+  );
+  installedMemory.revision = reviewed.memory.revision;
+  await knowledgeRequest(
+    address.origin,
+    headers,
+    `/sessions/${persistedSession.id}/context-selection`,
+    'PUT',
+    { profileId: installedProfile.id, skillIds: [installedSkill.id] },
+  );
   const conflict = await capture(
     [
       launcher,
@@ -234,6 +308,41 @@ try {
   ).json();
   assert.equal(savedFork.state.parent.sessionId, persistedSession.id);
   assert.equal(savedFork.state.draft, '');
+  const savedKnowledge = await knowledgeRequest(
+    reopened.origin,
+    restartHeaders,
+    `/knowledge?sessionId=${persistedSession.id}`,
+  );
+  assert.equal(savedKnowledge.selection.profileId, installedProfile.id);
+  assert.deepEqual(savedKnowledge.selection.skillIds, ['project:installed-check']);
+  assert.ok(savedKnowledge.catalog.skills.some((skill) => skill.id === 'builtin:testing'));
+  assert.ok(savedKnowledge.catalog.skills.some((skill) => skill.id === installedSkill.id));
+  const savedContext = await knowledgeRequest(
+    reopened.origin,
+    restartHeaders,
+    `/sessions/${persistedSession.id}/context`,
+  );
+  assert.equal(savedContext.knowledge.persona.name, 'Package reviewer');
+  assert.equal(savedContext.knowledge.skills[0].id, installedSkill.id);
+  assert.ok(savedContext.knowledge.memories.some((memory) => memory.id === installedMemory.id));
+  const savedEvidence = await knowledgeRequest(
+    reopened.origin,
+    restartHeaders,
+    `/memories/${installedMemory.id}/evidence`,
+  );
+  assert.equal(savedEvidence.revisions.length, 2);
+  await knowledgeRequest(
+    reopened.origin,
+    restartHeaders,
+    `/memories/${installedMemory.id}`,
+    'DELETE',
+    { revision: installedMemory.revision },
+  );
+  assert.equal(
+    (await knowledgeRequest(reopened.origin, restartHeaders, '/memories?q=PACKAGE')).memories
+      .length,
+    0,
+  );
   const artifacts = join(root, 'artifacts');
   await mkdir(artifacts, { recursive: true });
   await copyFile(join(temporaryRoot, packed.filename), join(artifacts, packed.filename));
@@ -260,6 +369,10 @@ try {
           'continuity-draft-mode-context',
           'continuity-rename-export',
           'continuity-fork-persistence',
+          'knowledge-skills-profiles-memory-persistence',
+          'skill-inspector-read-only',
+          'knowledge-deleted-memory-search',
+          'memory-lens-review-history',
           'port-conflict',
           'invalid-options',
         ],
@@ -269,7 +382,7 @@ try {
     ) + '\n',
   );
   console.log(
-    `PASS: tarball installation, executable shim, native diagnostics, assets, sessions, M3 draft/mode/context/rename/export/fork persistence, port conflict, and invalid options (${files.length} packaged files).`,
+    `PASS: tarball installation, executable shim, native diagnostics, assets, sessions, M3 continuity, M4 skills/profiles/memory persistence and search deletion, port conflict, and invalid options (${files.length} packaged files).`,
   );
   console.log(`Artifacts: ${join(artifacts, packed.filename)}`);
 } finally {

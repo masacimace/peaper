@@ -16,6 +16,8 @@ import type { ProviderStore } from '../providers/store.js';
 import { configuredSelection, modelError } from '../providers/model.js';
 import { WorkspaceEdits } from '../workspace/edits.js';
 import { InstructionLoader, continuityError } from './instructions.js';
+import type { KnowledgeService } from '../knowledge/service.js';
+import { knowledgeMarkdown } from '../knowledge/export.js';
 
 export const estimateTokens = (value: unknown) =>
   Math.ceil(
@@ -46,6 +48,7 @@ export class ContinuityService {
     private readonly providers: ProviderStore,
     private readonly publish: () => void,
     globalInstructions?: string,
+    private readonly knowledge?: KnowledgeService,
   ) {
     this.instructions = new InstructionLoader(workspace.path, dataDirectory, globalInstructions);
     this.edits = new WorkspaceEdits(workspace.path, dataDirectory);
@@ -173,6 +176,9 @@ export class ContinuityService {
     const state = this.get(sessionId),
       turns = this.turns(sessionId),
       instructions = await this.instructions.load(selectedFile);
+    const knowledge = this.knowledge
+      ? await this.knowledge.snapshot(sessionId, state.draft, undefined, false)
+      : undefined;
     const latest = turns.at(-1);
     const active = latest ? agentRunSchema.parse(JSON.parse(latest.state)) : null;
     const activeEstimate =
@@ -186,12 +192,18 @@ export class ContinuityService {
       state,
       ...this.budget(configured),
       estimatedTokens:
-        activeEstimate ?? estimateTokens(this.history(sessionId)) + estimateTokens(instructions),
+        activeEstimate ??
+        estimateTokens(this.history(sessionId)) +
+          estimateTokens(instructions) +
+          (knowledge && this.knowledge
+            ? estimateTokens(this.knowledge.prompt(knowledge, await this.knowledge.available()))
+            : 0),
       totalTurns: turns.length,
       compactedTurns: state.compaction
         ? turns.findIndex((turn) => turn.id === state.compaction!.throughRunId) + 1
         : 0,
       instructions,
+      knowledge,
     };
   }
   compact(sessionId: string, configured: Configured, signal?: AbortSignal, keep = 2) {
@@ -333,6 +345,8 @@ export class ContinuityService {
       }
       const model = this.store.selection(sessionId);
       if (model) this.store.select(session.id, model);
+      if (this.knowledge)
+        this.knowledge.store.select(session.id, this.knowledge.store.selection(sessionId));
       const compact = source.compaction && mapping.get(source.compaction.throughRunId);
       const retained = turns
         .slice(0, end + 1)
@@ -507,7 +521,12 @@ export class ContinuityService {
   export(sessionId: string, format: 'json' | 'markdown') {
     const session = this.session(sessionId),
       state = this.get(sessionId),
-      runs = this.store.list(sessionId, true),
+      runs = this.store.list(sessionId, true).map((run) => ({
+        ...run,
+        memorySuggestions: run.memorySuggestions.map(
+          (suggestion) => this.knowledge?.store.proposal(suggestion.id) ?? suggestion,
+        ),
+      })),
       visible = new Set(this.turns(sessionId).map((turn) => turn.id));
     const payload = {
       version: 1,
@@ -518,7 +537,7 @@ export class ContinuityService {
     const content =
       format === 'json'
         ? JSON.stringify(payload, null, 2)
-        : `# ${session.title}\n\n${runs.map((run) => `## ${run.startedAt} · ${run.mode} · ${run.status}${visible.has(run.id) ? '' : ' · archived'}\n\n### User\n${run.prompt}\n\n### Peaper\n${run.text}\n\n${run.activities.map((item) => `- ${item.name}: ${item.status}\n\n\`\`\`text\n${(item.output ?? '').replaceAll('```', '~~~')}\n\`\`\``).join('\n')}\n`).join('\n')}`;
+        : `# ${session.title}\n\n${runs.map((run) => `## ${run.startedAt} · ${run.mode} · ${run.status}${visible.has(run.id) ? '' : ' · archived'}\n\n### User\n${run.prompt}\n\n### Peaper\n${run.text}\n\n${run.activities.map((item) => `- ${item.name}: ${item.status}\n\n\`\`\`text\n${(item.output ?? '').replaceAll('```', '~~~')}\n\`\`\``).join('\n')}\n${knowledgeMarkdown(run.knowledge, run.memorySuggestions)}`).join('\n')}`;
     return {
       filename: `peaper-${session.id}.${format === 'json' ? 'json' : 'md'}`,
       content,

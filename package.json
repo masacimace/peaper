@@ -1,8 +1,8 @@
 {
   "name": "@peaper/local",
-  "version": "0.3.0-continuity.1",
+  "version": "0.4.0-knowledge.1",
   "private": true,
-  "description": "Your local coding workspace. Peaper Continuity preview.",
+  "description": "Your local coding workspace. Peaper Skills and Memory preview.",
   "type": "module",
   "license": "UNLICENSED",
   "packageManager": "pnpm@12.14.0",
@@ -42,6 +42,7 @@
     "node-pty": "1.1.0",
     "open": "11.0.4",
     "picocolors": "1.1.1",
+    "yaml": "2.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

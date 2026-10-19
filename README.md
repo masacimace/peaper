@@ -2,7 +2,7 @@
 
 A local coding workspace, launched from your project and opened in your browser.
 
-This is the **M3 Continuity** preview, built on the modular coding workspace. Configure an
+This is the **M4 Skills and Memory** preview, built on the modular coding workspace. Configure an
 OpenRouter or OpenAI-compatible model in Models, test streaming/tool support, and send a task
 from the Agent panel. File edits and commands require approval before execution.
 
@@ -106,7 +106,62 @@ leaves conversation history intact. Commands, databases and external service eff
 rolled back. Restore files before rewinding away their turns; forks have no snapshots for inherited
 changes. See [M3 implementation and limits](docs/M3-Continuity-Implementation.md).
 
-Prompts and tool results used by the agent are sent to the configured model provider. API keys
+## Skills, profiles and memory in M4
+
+- Skills discovers built-in, personal and project skill folders using `SKILL.md` YAML metadata.
+  The initial procedures are code-review, debugging and testing. Create/edit instructions, import
+  a local folder with resources, inspect requirements, and enable/disable manual or automatic use.
+  Refresh skills rereads external filesystem changes. Built-ins are read-only and can be copied.
+- Skill Inspector provides scoped invocation, instructions, a nested file browser, example resources,
+  missing reference checks and script interpreter availability without executing code. Package
+  dependencies and runtime versions remain declared requirements, not verified guarantees.
+- Skill Activity groups task snapshots, recorded activation reasons, resource reads, approval
+  decisions and actual script output/status. Older tasks clearly identify unavailable evidence.
+- Default locations are `~/.peaper/skills/` and `<workspace>/.peaper/skills/`. Personal skills and
+  global memory follow the active data profile: `--data-dir` relocates personal storage. Project
+  skill files remain in the repository. Enable/automatic preferences are per workspace.
+- Choose up to three manual skills above the composer, use `/name`, or use an explicit ID such
+  as `/skill project:code-review review this patch`. Enabled bare names resolve project → personal
+  → built-in. An automatic-disabled higher-priority skill also prevents silent automatic fallback
+  to a lower-priority same-name procedure. All origins remain visible in Skills Manager.
+- Automatic discovery supplies metadata; the primary agent chooses `load_skill` when relevant.
+  Body/resource text is loaded on demand. `read_skill_resource` reads bounded text; `run_skill_script`
+  requires fresh command approval, rechecks the script/instructions and passes arguments literally
+  without shell parsing. It uses the same timeout, output cap, process-tree cancellation and host
+  permissions as other commands. Plan mode blocks script execution. Import never executes code
+  or installs dependencies; `allowed-tools` metadata does not preapprove any Peaper tool.
+- Skills → Profiles manages personal/project agent profiles and the workspace default. Select a
+  profile, Default profile or No profile per session. Profile/style preferences supplement scoped
+  `PEAPER.md` rules and permissions. Future tasks use updated profiles; each task retains what it used.
+- Memory creates/edits/deletes/searches/pins global notes, project decisions and session recaps.
+  SQLite is authoritative and FTS5 updates on edit/delete. Global notes work across projects using
+  this data profile, project notes stay in their workspace, and recap retrieval stays in its session.
+  Pinned notes are considered first within a visible context cap; other notes are searched by task.
+- Use Remember a note above the composer or `/remember project Keep the public API stable` to
+  review and save a note. Supported scopes are `global`, `project` and `recap`. An agent's
+  `propose_memory` output remains a pending suggestion until Save to Memory or an edited save;
+  dismissing a suggestion never adds it to retrieval. Repeating a save does not duplicate it.
+- Create recap in Memory lets you write a session recap or reuse its saved M3 conversation recap
+  for review. You can also ask the agent to propose a recap of the actual work just completed.
+  Conversation compaction remains separate from permanent memory.
+- Context shows selected profiles, manual skills and scoped notes. Completed task sources preserve
+  skill origin/instructions, profile revision and memory versions; JSON/Markdown exports include them.
+- Memory Lens in the composer previews selected/pinned/matching notes and supports one-task include
+  or exclude choices. Exclusions also constrain agent memory search; past conversation content is
+  retained. Task Memory Lens records the actual initial/search selections and captured revisions.
+- Memory Evidence attaches bounded snapshots of workspace files, source messages and tool results,
+  with digests, excerpts and timestamps. Each note exposes sources, revision history and recorded
+  usage within the current workspace. Captured evidence is not a guarantee of correctness.
+- Memory Review checks title/keyword overlap and shows changes before an explicit update or keep-both
+  decision. Agent suggestions remain pending until reviewed; existing revision checks protect stale
+  edits. Migration 0006 preserves existing notes and seeds their current revision into history.
+
+Deleting a memory removes the stored note and its active search entry. Historical task snapshots,
+suggestions, conversation recaps and exports retain past context. Rewind does not undo saved memory,
+profile settings or script/command effects. See [M4 implementation and limits](docs/M4-Knowledge-Implementation.md).
+
+Prompts, active instructions/profiles/skills, retrieved memory and tool results used by the agent
+are sent to the configured model provider. API keys
 stay in the backend, encrypted in `provider.json` with a local `provider.key` master key in the
 Peaper data directory. The API returns configuration/status only. Both files rely on local
 filesystem access protection; encryption does not isolate them from your own account. Keep the
@@ -143,8 +198,7 @@ account permissions and may access files/network or have effects that cancellati
   reduced-motion support, and bundled Inter/JetBrains Mono fonts.
 
 The agent composer retains per-session drafts locally and in SQLite. Agent/Tasks/Context tabs show the
-conversation, tool activity, checklist, workspace and selected file. Skills, Memory and Integrations
-managers remain future milestones.
+conversation, tool activity, checklist, workspace and selected file. Integrations remains a future milestone.
 
 `Ctrl+B` toggles navigation, `Ctrl+K` opens a new session, and `Ctrl+backtick` toggles the terminal.
 Resize handles also accept arrow keys. Narrow windows use focused panel views while retaining

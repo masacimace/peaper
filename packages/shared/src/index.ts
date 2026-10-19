@@ -2,6 +2,7 @@ import { z } from 'zod';
 export * from './agent.js';
 export * from './models.js';
 export * from './continuity.js';
+export * from './knowledge.js';
 
 export const workspaceSchema = z.object({
   id: z.string(),
@@ -70,6 +71,7 @@ export const eventSchema = z.object({
     'provider.updated',
     'models.updated',
     'session.updated',
+    'knowledge.updated',
   ]),
   payload: z.record(z.string(), z.unknown()),
   createdAt: z.string(),

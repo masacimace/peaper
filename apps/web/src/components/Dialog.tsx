@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { IconButton } from './ui/Button';
 import { cn } from './ui/cn';
 
@@ -20,7 +21,7 @@ export function Dialog({
     ref.current?.showModal();
     ref.current?.querySelector<HTMLInputElement>('input')?.focus();
   }, []);
-  return (
+  const content = (
     <dialog
       ref={ref}
       className={cn(
@@ -47,4 +48,5 @@ export function Dialog({
       {children}
     </dialog>
   );
+  return typeof document === 'undefined' ? content : createPortal(content, document.body);
 }

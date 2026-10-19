@@ -39,8 +39,10 @@ export function useContinuity(
     const event = (event: Event) => {
       const detail = (event as CustomEvent<RuntimeEvent>).detail;
       if (
-        detail.sessionId === sessionId &&
-        ['agent.updated', 'session.updated', 'models.updated'].includes(detail.type) &&
+        (detail.sessionId === sessionId || detail.type === 'knowledge.updated') &&
+        ['agent.updated', 'session.updated', 'models.updated', 'knowledge.updated'].includes(
+          detail.type,
+        ) &&
         !timer
       )
         timer = setTimeout(() => {

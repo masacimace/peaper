@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, cp, appendFile } from 'node:fs/promises';
+import { mkdtemp, rm, cp, appendFile, mkdir, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { PeaperDatabase } from '../packages/core/src/storage/database.js';
+import { KnowledgeStore } from '../packages/core/src/knowledge/store.js';
+import { AgentStore } from '../packages/core/src/agent/store.js';
 
 const migrations = resolve('packages/core/migrations');
 
@@ -35,7 +37,7 @@ test('session persistence, FTS triggers, scoped retrieval, and ordered replay su
       .run(second.session.id);
     database.close();
     database = new PeaperDatabase(directory, migrations);
-    assert.equal(database.schemaVersion, 4);
+    assert.equal(database.schemaVersion, 6);
     assert.equal(database.recoverInterrupted(a.id), 1);
     assert.equal(database.recoverInterrupted(a.id), 0);
     assert.equal(
@@ -69,6 +71,57 @@ test('modified applied migrations are rejected without replacing user data', asy
     const original = new PeaperDatabase(directory, migrations);
     original.close();
   } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('M4 memory upgrade preserves existing notes and seeds their current revision without changing applied migrations', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'peaper-memory-upgrade-'));
+  const oldMigrations = join(directory, 'old-migrations'),
+    workspace = join(directory, 'workspace');
+  await mkdir(oldMigrations);
+  await mkdir(workspace);
+  for (const name of (await readdir(migrations)).filter((name) => /^000[1-5]_/.test(name)))
+    await cp(join(migrations, name), join(oldMigrations, name));
+  let database = new PeaperDatabase(directory, oldMigrations);
+  try {
+    const owner = database.workspace(workspace);
+    database.sqlite
+      .prepare('INSERT INTO memories VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run(
+        'legacy-note',
+        owner.id,
+        'Existing decision',
+        'PRESERVED_MEMORY',
+        'project',
+        null,
+        null,
+        1,
+        3,
+        '2026-10-01T00:00:00Z',
+        '2026-10-19T00:00:00Z',
+      );
+    database.close();
+    database = new PeaperDatabase(directory, migrations);
+    assert.equal(database.schemaVersion, 6);
+    const agent = new AgentStore(database, owner.id, () => {}),
+      store = new KnowledgeStore(database, owner.id, agent, () => {});
+    assert.equal(store.memory('legacy-note').body, 'PRESERVED_MEMORY');
+    assert.equal(store.memory('legacy-note').pinned, true);
+    const history = store.evidenceView('legacy-note');
+    assert.equal(history.revisions.length, 1);
+    assert.equal(history.revisions[0]!.action, 'imported');
+    assert.equal(history.revisions[0]!.memory.revision, 3);
+    assert.deepEqual(history.revisions[0]!.memory.evidence, []);
+    store.saveMemory(
+      { title: 'Existing decision', body: 'UPDATED_MEMORY', scope: 'project' },
+      'legacy-note',
+      3,
+    );
+    assert.equal(store.evidenceView('legacy-note').revisions.length, 2);
+    assert.equal(store.listMemories('PRESERVED').length, 0);
+  } finally {
+    database.close();
     await rm(directory, { recursive: true, force: true });
   }
 });

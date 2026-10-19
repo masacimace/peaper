@@ -10,20 +10,26 @@ import {
   type ModelSelection,
   type AgentMode,
   type ActiveInstruction,
+  type ContextSelection,
+  type Skill,
+  type MemorySelection,
 } from '@peaper/shared';
 import type { PeaperDatabase } from '../storage/database.js';
 import { ProviderStore } from '../providers/store.js';
 import { configuredSelection, modelError } from '../providers/model.js';
 import { WorkspaceEdits } from '../workspace/edits.js';
 import { AgentStore } from './store.js';
-import { runCommand } from './commands.js';
+import { runCommand, runProgram } from './commands.js';
 import { searchWorkspace } from './search.js';
 import { ContinuityService, estimateTokens } from '../continuity/service.js';
 import { continuityError } from '../continuity/instructions.js';
+import { KnowledgeStore } from '../knowledge/store.js';
+import { KnowledgeService } from '../knowledge/service.js';
 
 export class AgentRuntime {
   readonly store: AgentStore;
   readonly continuity: ContinuityService;
+  readonly knowledge: KnowledgeService;
   private readonly edits: WorkspaceEdits;
   private readonly active = new Map<
     string,
@@ -47,6 +53,11 @@ export class AgentRuntime {
   ) {
     this.store = new AgentStore(database, workspace.id, publish);
     this.store.recover();
+    this.knowledge = new KnowledgeService(
+      new KnowledgeStore(database, workspace.id, this.store, publish),
+      workspace.path,
+      dataDirectory,
+    );
     this.edits = new WorkspaceEdits(workspace.path, dataDirectory);
     this.continuity = new ContinuityService(
       database,
@@ -55,6 +66,8 @@ export class AgentRuntime {
       this.store,
       providers,
       publish,
+      undefined,
+      this.knowledge,
     );
   }
   hasActive(sessionId: string) {
@@ -65,7 +78,12 @@ export class AgentRuntime {
     message: string,
     selectedFile?: string | null,
     selection?: ModelSelection,
-    options: { mode?: AgentMode; resumeOf?: string } = {},
+    options: {
+      mode?: AgentMode;
+      resumeOf?: string;
+      context?: ContextSelection;
+      memory?: MemorySelection;
+    } = {},
   ) {
     if (this.closed)
       throw Object.assign(new Error('Runtime is shutting down.'), { statusCode: 503 });
@@ -91,6 +109,7 @@ export class AgentRuntime {
         statusCode: 409,
       });
     this.store.select(sessionId, configured.selection);
+    if (options.context) this.knowledge.store.select(sessionId, options.context);
     const previousState = this.continuity.get(sessionId);
     const mode = options.mode ?? previousState.mode;
     this.continuity.update(sessionId, {
@@ -106,6 +125,8 @@ export class AgentRuntime {
       mode,
       resumeOf: options.resumeOf,
       selectedFile: selectedFile ?? null,
+      knowledgeSelection: this.knowledge.store.selection(sessionId),
+      memorySelection: options.memory,
     });
     const abort = new AbortController();
     const task = Promise.resolve()
@@ -146,7 +167,7 @@ export class AgentRuntime {
       `${message?.trim() || 'Continue the interrupted task.'}\n\nRecovery context (historical data): ${recap}\nVerify the current files before changing them. Completed tools must not be replayed automatically. Uncertain command effects require inspection. Obtain fresh approval for all writes and commands.`,
       source.selectedFile,
       selection,
-      { mode: source.mode, resumeOf: id },
+      { mode: source.mode, resumeOf: id, memory: source.memorySelection },
     );
   }
   async cancel(id: string) {
@@ -236,6 +257,7 @@ export class AgentRuntime {
   ) {
     let lastSave = Date.now();
     let activeInstructions: ActiveInstruction[] = [];
+    let availableSkills: Skill[] = [];
     const flush = (force = false) => {
       if (force || Date.now() - lastSave >= 150) {
         this.store.save(run);
@@ -255,11 +277,17 @@ export class AgentRuntime {
       run.activities.push(activity);
       flush(true);
       try {
-        if (run.mode === 'plan' && ['write_file', 'edit_file', 'run_command'].includes(name))
+        if (
+          run.mode === 'plan' &&
+          ['write_file', 'edit_file', 'run_command', 'run_skill_script'].includes(name)
+        )
           throw continuityError(
             'Plan mode cannot edit files or execute commands. Propose a plan for the user to review.',
           );
-        if (typeof input.path === 'string') {
+        if (
+          typeof input.path === 'string' &&
+          !['read_skill_resource', 'run_skill_script'].includes(name)
+        ) {
           const scoped = await this.continuity.instructions.load(input.path);
           const additional = scoped.filter(
             (item) =>
@@ -309,6 +337,164 @@ export class AgentRuntime {
       }
     };
     const tools = {
+      find_skills: tool({
+        description:
+          'Find enabled automatic skills by metadata. Does not load instructions or execute scripts.',
+        inputSchema: z.object({ query: z.string().max(200).default('') }),
+        execute: (input, ctx) =>
+          tracked('find_skills', ctx.toolCallId, input, async () => {
+            const words = input.query.toLowerCase().split(/\s+/).filter(Boolean);
+            return (await this.knowledge.available())
+              .filter(
+                (skill) =>
+                  !words.length ||
+                  words.some((word) =>
+                    `${skill.name} ${skill.description}`.toLowerCase().includes(word),
+                  ),
+              )
+              .slice(0, 24);
+          }),
+      }),
+      load_skill: tool({
+        description:
+          'Load an enabled skill when its metadata matches the task. Use exact scoped IDs. Include a short user-facing reason describing the task match, not private reasoning. Body/resources are not loaded until activation.',
+        inputSchema: z.object({
+          id: z.string().max(100),
+          reason: z.string().trim().max(500).optional(),
+        }),
+        execute: (input, ctx) =>
+          tracked('load_skill', ctx.toolCallId, input, async () =>
+            this.knowledge.use(run, input.id, input.reason),
+          ),
+      }),
+      read_skill_resource: tool({
+        description:
+          'Read a bounded UTF-8 resource relative to an already loaded skill folder, such as references/guide.md or scripts/check.mjs.',
+        inputSchema: z.object({ id: z.string().max(100), path: z.string().max(1024) }),
+        execute: (input, ctx) =>
+          tracked('read_skill_resource', ctx.toolCallId, input, async () => {
+            if (!run.knowledge.skills.some((s) => s.id === input.id))
+              throw continuityError('Load the skill before reading resources.');
+            return this.knowledge.skills.readResource(input.id, input.path);
+          }),
+      }),
+      run_skill_script: tool({
+        description:
+          'Run a script from an already loaded skill scripts directory in the workspace, after fresh user approval. Host permissions and the command timeout/cancellation policy apply.',
+        inputSchema: z.object({
+          id: z.string().max(100),
+          path: z.string().max(1024),
+          args: z.array(z.string().max(1000)).max(20).default([]),
+        }),
+        execute: (input, ctx) =>
+          tracked('run_skill_script', ctx.toolCallId, input, async (activity) => {
+            const loaded = run.knowledge.skills.findLast((s) => s.id === input.id);
+            if (!loaded) throw continuityError('Load the skill before running its scripts.');
+            const script = await this.knowledge.skills.script(input.id, input.path, input.args);
+            if (script.skill.digest !== loaded.digest)
+              throw continuityError(
+                'Skill instructions changed. Reload the skill before proposing a script.',
+              );
+            await this.approve(
+              run,
+              activity,
+              {
+                kind: 'command',
+                description: `Run ${input.id} · ${input.path}`,
+                command: script.command,
+              },
+              signal,
+            );
+            const checked = await this.knowledge.skills.script(input.id, input.path, input.args);
+            if (
+              checked.digest !== script.digest ||
+              checked.skill.digest !== script.skill.digest ||
+              checked.command !== script.command
+            )
+              throw continuityError(
+                'Skill or script changed after approval. Review a new proposal.',
+              );
+            return runProgram(script.program, script.args, script.cwd, signal, (output) => {
+              activity.output = output;
+              flush();
+            });
+          }),
+      }),
+      search_memory: tool({
+        description:
+          'Search current global/project memory and this session recap only. Deleted notes and other projects/session recaps are excluded.',
+        inputSchema: z.object({ query: z.string().trim().min(1).max(200) }),
+        execute: (input, ctx) =>
+          tracked('search_memory', ctx.toolCallId, input, async () => {
+            const found = this.knowledge.store.retrieve(run.sessionId, input.query, false, {
+              includeIds: [],
+              excludeIds: run.memorySelection?.excludeIds ?? [],
+            });
+            const additions = found.memories.filter(
+              (memory) =>
+                !run.knowledge.memories.some(
+                  (m) => m.id === memory.id && m.revision === memory.revision,
+                ),
+            );
+            if (
+              run.knowledge.memories.length + additions.length > 24 ||
+              Buffer.byteLength(JSON.stringify([...run.knowledge.memories, ...additions])) > 64000
+            )
+              throw continuityError(
+                'Memory context limit reached. Continue with a narrower query.',
+              );
+            run.knowledge.memories.push(...additions);
+            run.knowledge.memoryContext ??= [];
+            run.knowledge.memoryContext.push(
+              ...found.memoryContext
+                .filter(
+                  (entry) =>
+                    entry.selected &&
+                    additions.some((m) => m.id === entry.id && m.revision === entry.revision),
+                )
+                .map((entry) => ({
+                  ...entry,
+                  reason: 'search' as const,
+                  stage: 'search' as const,
+                })),
+            );
+            return { memories: found.memories, warnings: found.warnings };
+          }),
+      }),
+      propose_memory: tool({
+        description:
+          'Suggest a concise global preference, project decision, or session recap for user review. Attach relevant workspace files or tool activity IDs from this task as evidence (up to eight combined). Creates a pending suggestion, not permanent memory; the user must review and save it.',
+        inputSchema: z.object({
+          title: z.string().trim().min(1).max(120),
+          body: z.string().trim().min(1).max(8000),
+          scope: z.enum(['global', 'project', 'recap']),
+          files: z.array(z.string().max(2048)).max(6).default([]),
+          activityIds: z.array(z.string().max(200)).max(6).default([]),
+        }),
+        execute: (input, ctx) =>
+          tracked('propose_memory', ctx.toolCallId, input, async () => {
+            if (run.memorySuggestions.length >= 3)
+              throw continuityError('At most three memory suggestions per task.');
+            const proposal = await this.knowledge.memory.propose(run.sessionId, run.id, {
+              ...input,
+              evidence: [
+                ...input.files.map((path) => ({ kind: 'file', path })),
+                ...input.activityIds.map((activityId) => ({
+                  kind: 'activity',
+                  runId: run.id,
+                  activityId,
+                })),
+              ],
+            });
+            run.memorySuggestions.push(proposal);
+            return {
+              id: proposal.id,
+              status: 'pending',
+              requiresUserConfirmation: true,
+              saved: false,
+            };
+          }),
+      }),
       propose_plan: tool({
         description:
           'Save a concrete implementation plan for user review. Include approach, files, validation, and unresolved questions. This does not authorize implementation.',
@@ -543,11 +729,23 @@ export class AgentRuntime {
     try {
       run.instructions = await this.continuity.instructions.load(selectedFile);
       activeInstructions = run.instructions;
+      run.knowledge = await this.knowledge.snapshot(
+        run.sessionId,
+        run.prompt,
+        run.knowledgeSelection,
+        true,
+        run.memorySelection,
+      );
+      availableSkills = await this.knowledge.available();
+      const knowledgeTokens = () =>
+        estimateTokens(this.knowledge.prompt(run.knowledge, availableSkills));
       const budget = this.continuity.budget(configured);
       let history = this.continuity.history(run.sessionId, run.id);
       let compacted = false;
       if (
-        estimateTokens([...history, userMessage]) + estimateTokens(run.instructions) >
+        estimateTokens([...history, userMessage]) +
+          estimateTokens(run.instructions) +
+          knowledgeTokens() >
           budget.budget * 0.8 &&
         this.continuity.turns(run.sessionId).length > 2
       ) {
@@ -558,7 +756,9 @@ export class AgentRuntime {
       run.context = {
         ...budget,
         estimatedTokens:
-          estimateTokens([...history, userMessage]) + estimateTokens(run.instructions),
+          estimateTokens([...history, userMessage]) +
+          estimateTokens(run.instructions) +
+          knowledgeTokens(),
         compacted,
       };
       flush(true);
@@ -570,12 +770,25 @@ export class AgentRuntime {
         tools,
         activeTools:
           run.mode === 'plan'
-            ? ['ask_user', 'list_directory', 'read_file', 'search', 'update_todos', 'propose_plan']
+            ? [
+                'ask_user',
+                'list_directory',
+                'read_file',
+                'search',
+                'update_todos',
+                'propose_plan',
+                'find_skills',
+                'load_skill',
+                'read_skill_resource',
+                'search_memory',
+                'propose_memory',
+              ]
             : undefined,
         messages: [...history, userMessage],
         system,
         prepareStep: ({ messages }) => {
-          const estimated = estimateTokens(messages) + estimateTokens(activeInstructions);
+          const estimated =
+            estimateTokens(messages) + estimateTokens(activeInstructions) + knowledgeTokens();
           if (estimated > budget.budget)
             throw continuityError(
               'Context budget reached before another model request. Review progress, compact completed history, lower the output limit, or choose a larger-context model.',
@@ -588,7 +801,8 @@ export class AgentRuntime {
               '\n\nActive PEAPER.md instructions:\n' +
               activeInstructions
                 .map((item) => `--- ${item.scope}: ${item.path}\n${item.content}`)
-                .join('\n'),
+                .join('\n') +
+              this.knowledge.prompt(run.knowledge, availableSkills),
           };
         },
         onStepEnd: (step) => {

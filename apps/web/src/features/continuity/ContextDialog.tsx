@@ -4,6 +4,7 @@ import { Dialog } from '../../components/Dialog';
 import { Button } from '../../components/ui/Button';
 import { ErrorNotice } from '../../components/ui/Notice';
 import { api } from '../../lib/api';
+import { KnowledgeView } from '../knowledge/KnowledgeView';
 
 export function ContextDialog({
   id,
@@ -106,6 +107,16 @@ export function ContextDialog({
           Latest file restore: {info.state.lastRestore.paths.join(', ')}. The conversation was
           retained; future tasks are told to verify current files.
         </p>
+      )}
+      {info.knowledge && (
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="text-label font-medium">Profile, skills & memory for the next task</h3>
+          <p className="mt-2 text-caption leading-relaxed text-subtle">
+            Manual selections and scoped notes are included in the estimate. Automatic skills are
+            discovered by metadata; used sources appear on each task.
+          </p>
+          <KnowledgeView snapshot={info.knowledge} />
+        </div>
       )}
       {error && <ErrorNotice className="mt-3">{error}</ErrorNotice>}
     </Dialog>

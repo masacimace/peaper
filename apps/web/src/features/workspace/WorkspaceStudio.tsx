@@ -30,6 +30,9 @@ import { SettingsPage } from '../settings/SettingsPage';
 import { useModels } from '../models/useModels';
 import { ModelsPage } from '../models/ModelsPage';
 import { ModulePage } from './ModulePage';
+import { useKnowledge } from '../knowledge/useKnowledge';
+import { SkillsPage } from '../skills/SkillsPage';
+import { MemoryPage } from '../memory/MemoryPage';
 
 const TerminalPanel = lazy(() => import('../terminal/TerminalPanel'));
 export function WorkspaceStudio({
@@ -69,6 +72,7 @@ export function WorkspaceStudio({
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const editor = useEditorFiles(workspace.id);
   const modelController = useModels(activeId);
+  const knowledgeController = useKnowledge(workspace.id, activeId ?? undefined);
   const bottom = useRef<HTMLDivElement>(null);
   const activeSession = sessions.find((session) => session.id === activeId);
   const collapsed = narrow ? !mobileNavigation : layout.sidebarCollapsed;
@@ -270,6 +274,8 @@ export function WorkspaceStudio({
             onNewSession={() => setNewSession(true)}
             onSettings={() => navigate('settings')}
             onModels={() => navigate('models')}
+            knowledge={knowledgeController}
+            onSkills={() => navigate('skills')}
           />
           {show.agent && showSurface && (
             <ResizeHandle
@@ -407,7 +413,9 @@ export function WorkspaceStudio({
             />
           )}
           {section === 'models' && <ModelsPage controller={modelController} />}
-          {(section === 'skills' || section === 'memory' || section === 'integrations') && (
+          {section === 'skills' && <SkillsPage controller={knowledgeController} />}
+          {section === 'memory' && <MemoryPage sessions={sessions} />}
+          {section === 'integrations' && (
             <ModulePage section={section} onWorkspace={() => navigate('workspace')} />
           )}
         </div>

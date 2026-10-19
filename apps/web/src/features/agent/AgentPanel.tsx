@@ -1,4 +1,4 @@
-import type { Session, Workspace } from '@peaper/shared';
+import type { Session, Workspace, MemoryInput, MemorySelection } from '@peaper/shared';
 import {
   ArrowUp,
   ArrowUpRight,
@@ -32,6 +32,10 @@ import { ModelPicker } from '../models/ModelPicker';
 import { useContinuity } from '../continuity/useContinuity';
 import { useSessionDraft } from '../continuity/useSessionDraft';
 import { ContinuityBar } from '../continuity/ContinuityBar';
+import type { useKnowledge } from '../knowledge/useKnowledge';
+import { ContextPicker } from '../knowledge/ContextPicker';
+import { MemoryDialog } from '../memory/MemoryDialog';
+import { MemoryLensControl } from '../memory/MemoryLens';
 
 const starters = [
   {
@@ -68,6 +72,8 @@ export function AgentPanel({
   models,
   onModels,
   onSessionCreated,
+  knowledge,
+  onSkills,
   ...panel
 }: {
   workspace: Workspace;
@@ -78,6 +84,8 @@ export function AgentPanel({
   models: ReturnType<typeof useModels>;
   onModels: () => void;
   onSessionCreated: (session: Session) => void;
+  knowledge: ReturnType<typeof useKnowledge>;
+  onSkills: () => void;
   hidden: boolean;
   width: number;
   maximized: boolean;
@@ -88,6 +96,11 @@ export function AgentPanel({
   const sessionDraft = useSessionDraft(workspace.id, session?.id);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [remember, setRemember] = useState<Partial<MemoryInput> | null>(null);
+  const [memoryNotice, setMemoryNotice] = useState('');
+  const memoryKey = session?.id ?? 'workspace';
+  const [memoryChoices, setMemoryChoices] = useState<Record<string, MemorySelection>>({});
+  const memorySelection = memoryChoices[memoryKey] ?? { includeIds: [], excludeIds: [] };
   const agent = useAgent(session?.id);
   const scroll = useRef<HTMLDivElement>(null);
   const { scrolling, onScrollActivity } = useScrollActivity();
@@ -118,13 +131,25 @@ export function AgentPanel({
     selection &&
     !selectionLoading &&
     !selectionError &&
-    sessionDraft.loaded,
+    sessionDraft.loaded &&
+    knowledge.loaded,
   );
   const draft = sessionDraft.draft;
+  const remembering = /^\/remember\s/i.test(draft.trim());
   function setDraft(value: string) {
     sessionDraft.setDraft(value);
   }
   async function send() {
+    const command = /^\/remember(?:\s+(global|project|recap))?\s+([\s\S]+)$/i.exec(draft.trim());
+    if (command) {
+      setRemember({
+        title: command[2]!.trim().slice(0, 80),
+        body: command[2]!.trim(),
+        scope: (command[1]?.toLowerCase() as MemoryInput['scope']) ?? 'project',
+        sessionId: session?.id ?? null,
+      });
+      return;
+    }
     if (!draft.trim() || sending || running || !ready || !selection) return;
     const text = draft;
     setSending(true);
@@ -135,7 +160,20 @@ export function AgentPanel({
         target = await api.createSession(text.trim().slice(0, 80));
         onSessionCreated(target);
       }
-      await api.sendMessage(target.id, text, selectedFile, selection, sessionDraft.mode);
+      await api.sendMessage(
+        target.id,
+        text,
+        selectedFile,
+        selection,
+        sessionDraft.mode,
+        knowledge.selection,
+        memorySelection,
+      );
+      setMemoryChoices((old) =>
+        old[memoryKey] === memorySelection
+          ? { ...old, [memoryKey]: { includeIds: [], excludeIds: [] } }
+          : old,
+      );
       sessionDraft.clearIfUnchanged(text);
     } catch (error) {
       setSendError(error instanceof Error ? error.message : 'Could not send message.');
@@ -287,10 +325,27 @@ export function AgentPanel({
             sessionDraft.setMode(mode);
             void continuity.refresh();
           }}
-        />
-        {(sessionDraft.error || continuity.error) && (
+        >
+          <ContextPicker
+            controller={knowledge}
+            onManage={onSkills}
+            onRemember={() => setRemember({ sessionId: session?.id ?? null })}
+          />
+          <MemoryLensControl
+            query={draft}
+            sessionId={session?.id}
+            value={memorySelection}
+            onChange={(value) => setMemoryChoices((old) => ({ ...old, [memoryKey]: value }))}
+          />
+        </ContinuityBar>
+        {memoryNotice && (
+          <p role="status" className="mb-2 text-caption text-success">
+            {memoryNotice}
+          </p>
+        )}
+        {(sessionDraft.error || continuity.error || knowledge.error) && (
           <p role="status" className="mb-2 text-caption text-warning">
-            {sessionDraft.error || continuity.error}
+            {sessionDraft.error || continuity.error || knowledge.error}
           </p>
         )}
         <div className="@container/composer mt-auto shrink-0 rounded-md border border-border-strong bg-surface-raised px-2 pt-2.25 pb-2 shadow-composer">
@@ -336,7 +391,9 @@ export function AgentPanel({
             <button
               className="ml-auto inline-grid size-7 shrink-0 place-items-center rounded-sm border border-accent bg-accent text-accent-foreground"
               aria-label="Send agent message"
-              disabled={!ready || !draft.trim() || running || sending}
+              disabled={
+                (!ready && !remembering) || !draft.trim() || (running && !remembering) || sending
+              }
               title={ready ? 'Send message (Enter)' : 'Choose and test a model on the Models page'}
               onClick={() => void send()}
             >
@@ -358,6 +415,20 @@ export function AgentPanel({
           )}
         </span>
       </div>
+      {remember && (
+        <MemoryDialog
+          initial={remember}
+          sessions={session ? [session] : []}
+          onClose={() => setRemember(null)}
+          onSaved={() => {
+            setMemoryNotice(
+              'Memory saved. It will be considered by future tasks within its scope.',
+            );
+            if (draft.trim().startsWith('/remember')) sessionDraft.clearIfUnchanged(draft);
+            void continuity.refresh().catch(() => {});
+          }}
+        />
+      )}
       <div
         className="h-full overflow-auto p-3.5"
         hidden={tab !== 'Tasks'}

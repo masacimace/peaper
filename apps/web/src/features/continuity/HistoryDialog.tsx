@@ -131,7 +131,8 @@ export function HistoryDialog({
         <h3 className="text-label font-medium">Rewind conversation</h3>
         <p className="my-2 text-caption leading-relaxed text-muted">
           Restore selected files first if needed, then rewind the conversation separately. Later
-          turns remain in session exports. Commands, databases and remote effects remain unchanged.
+          turns remain in session exports. Saved memory, profiles, commands, databases and remote
+          effects remain unchanged.
         </p>
         <Button disabled={running || Boolean(busy)} onClick={() => void action('preview')}>
           {busy === 'preview' ? 'Checking files…' : 'Preview rewind'}

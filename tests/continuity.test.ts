@@ -599,7 +599,7 @@ test('M3 migration preserves M2 sessions and seeds historical file checkpoints a
     ]);
     database.close();
     database = new PeaperDatabase(data, resolve('packages/core/migrations'));
-    assert.equal(database.schemaVersion, 4);
+    assert.equal(database.schemaVersion, 6);
     assert.equal(database.listSessions(project.id, 'migrationword')[0]!.id, session.id);
     const checkpoint = database.sqlite
       .prepare(

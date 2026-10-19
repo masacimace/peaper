@@ -124,7 +124,7 @@ is confined to explicitly named test fixtures; normal Peaper responses use the c
 
 Advanced context budgeting/compaction, instruction loading, plan mode, conversation fork,
 snapshots/rewind and recovery are delivered in [M3 Continuity](M3-Continuity-Implementation.md).
-Skills/Memory managers remain M4; MCP/hooks,
+Skills/Memory managers are delivered in [M4 Knowledge](M4-Knowledge-Implementation.md); MCP/hooks,
 Git/worktrees and persistent background command management remain M5. npm publication and
 broader native/platform release validation remain M6.
 

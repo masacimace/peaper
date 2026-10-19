@@ -52,10 +52,16 @@ export function agentRoutes(
   app.post<{ Params: { sessionId: string } }>(
     '/api/sessions/:sessionId/messages',
     (request, reply) => {
-      const { message, selectedFile, selection, mode } = sendMessageSchema.parse(request.body);
-      return reply
-        .code(202)
-        .send(agent.start(request.params.sessionId, message, selectedFile, selection, { mode }));
+      const { message, selectedFile, selection, mode, context, memory } = sendMessageSchema.parse(
+        request.body,
+      );
+      return reply.code(202).send(
+        agent.start(request.params.sessionId, message, selectedFile, selection, {
+          mode,
+          context,
+          memory,
+        }),
+      );
     },
   );
   app.post<{ Params: { runId: string } }>('/api/runs/:runId/cancel', (request) =>

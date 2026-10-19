@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { FileText, Gauge } from 'lucide-react';
 import type { AgentMode, AgentRun, ModelSelection, Session } from '@peaper/shared';
 import { Button } from '../../components/ui/Button';
@@ -18,6 +19,7 @@ export function ContinuityBar({
   running,
   onSelect,
   onRewound,
+  children,
 }: {
   session?: Session;
   runs: AgentRun[];
@@ -28,6 +30,7 @@ export function ContinuityBar({
   running: boolean;
   onSelect: (session: Session) => void;
   onRewound: (mode: AgentMode) => void;
+  children?: ReactNode;
 }) {
   const [dialog, setDialog] = useState<'context' | 'plan' | null>(null),
     info = controller.info;
@@ -56,6 +59,7 @@ export function ContinuityBar({
           Review plan
         </Button>
       )}
+      {children}
       <button
         aria-label="Context usage and instructions"
         title={
