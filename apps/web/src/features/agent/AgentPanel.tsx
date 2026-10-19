@@ -1,7 +1,6 @@
 import type { Session, Workspace, MemoryInput, MemorySelection } from '@peaper/shared';
 import {
   ArrowUp,
-  ArrowUpRight,
   AtSign,
   Bot,
   Braces,
@@ -14,10 +13,9 @@ import {
   ListTodo,
   Paperclip,
   Plus,
-  Settings2,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Button, IconButton } from '../../components/ui/Button';
+import { IconButton } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorNotice } from '../../components/ui/Notice';
 import { StatusDot } from '../../components/ui/Status';
@@ -233,14 +231,6 @@ export function AgentPanel({
                 {connection?.name || 'No model selected'}
               </span>
             </div>
-            <IconButton
-              className="ml-auto"
-              title="New session"
-              aria-label="New agent session"
-              onClick={onNewSession}
-            >
-              <Plus size={16} />
-            </IconButton>
           </div>
           {agent.runs.length === 0 && (
             <>
@@ -518,11 +508,6 @@ export function AgentPanel({
             <small className="text-mini text-subtle">{status}</small>
           </div>
         ))}
-        <Button variant="text" className="mt-4.75 text-caption" onClick={onSettings}>
-          <Settings2 size={14} />
-          Workspace settings
-          <ArrowUpRight size={13} />
-        </Button>
       </div>
     </Panel>
   );
