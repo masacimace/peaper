@@ -111,7 +111,6 @@ export function Sidebar({
             <span className={tooltipClass}>{label}</span>
           </button>
         ))}
-        <div className="h-2.25" />
         <button
           className={cn(
             navItem,

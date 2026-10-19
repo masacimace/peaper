@@ -19,12 +19,12 @@
 }
 @theme {
   --spacing: 4px;
-  --text-tiny: 7px;
-  --text-mini: 8px;
-  --text-micro: 9px;
-  --text-caption: 10px;
+  --text-tiny: 9px;
+  --text-mini: 10px;
+  --text-micro: 10px;
+  --text-caption: 11px;
   --text-tree: 10.5px;
-  --text-label: 11px;
+  --text-label: 12px;
   --text-small: 12px;
   --text-body: 13px;
   --text-brand: 15px;

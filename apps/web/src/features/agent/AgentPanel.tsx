@@ -407,7 +407,7 @@ export function AgentPanel({
           ) : selectionLoading ? (
             'Loading session model…'
           ) : (
-            <button className="underline underline-offset-2" onClick={onModels}>
+            <button onClick={onModels}>
               {model
                 ? 'Test or manage this model in Models'
                 : 'Connect a provider in Models to start'}
