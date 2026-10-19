@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  better-sqlite3: true
+  node-pty: true
+  esbuild: true
+  '@tailwindcss/oxide': true
+
+strictDepBuilds: true

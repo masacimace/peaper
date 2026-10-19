@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tgz
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.peaper-local/
+coverage/
+artifacts/
+.codex-remote-attachments/

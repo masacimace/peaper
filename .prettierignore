@@ -1,0 +1,7 @@
+node_modules
+dist
+pnpm-lock.yaml
+artifacts
+.codex-remote-attachments
+docs/Peaper-Grok-Build-Feature-Study.md
+docs/Peaper-Implementation-Blueprint.md

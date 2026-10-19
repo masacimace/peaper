@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+@import './themes.css';
+
+:root {
+  --font-ui: 'Inter Variable', sans-serif;
+  --font-code: 'JetBrains Mono Variable', monospace;
+  --text-micro: 9px;
+  --text-caption: 10px;
+  --text-label: 11px;
+  --text-small: 12px;
+  --text-body: 13px;
+  --text-heading: 24px;
+  --line-height-body: 1.55;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --control-height: 32px;
+  --panel-header-height: 35px;
+  --layer-navigation: 30;
+  --layer-menu: 45;
+  --layer-overlay: 60;
+  --shadow-menu: 0 8px 30px var(--shadow-color);
+  --shadow-dialog: 0 24px 100px var(--shadow-color);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+:root,
+[data-theme-preview] {
+  --ansi-black: var(--sidebar);
+  --ansi-cyan: var(--syntax-type);
+  --preview-page-background: #ffffff;
+}
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-ink: var(--text);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
